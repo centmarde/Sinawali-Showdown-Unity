@@ -195,18 +195,21 @@ public class CardFetcher : MonoBehaviour
 
     
     /// <summary>
-    /// Gets cards filtered by character class
+    /// Gets cards filtered by character class and obtainment status
     /// </summary>
     List<CardData> GetFilteredCards(CharacterClass characterClass = CharacterClass.Any)
     {
         var allCards = GetAllCards();
         
+        // First filter by obtainment status (only include obtained cards)
+        var obtainedCards = allCards.Where(card => card.IsObtained).ToList();
+        
         if (characterClass == CharacterClass.Any)
         {
-            return allCards;
+            return obtainedCards;
         }
         
-        return allCards.Where(card => card.CharacterClass == characterClass || card.CharacterClass == CharacterClass.Any).ToList();
+        return obtainedCards.Where(card => card.CharacterClass == characterClass || card.CharacterClass == CharacterClass.Any).ToList();
     }
     
     /// <summary>
@@ -326,11 +329,24 @@ public class CardFetcher : MonoBehaviour
     [ContextMenu("List Available Cards")]
     public void ListAvailableCards()
     {
-        var cards = GetAllCards();
-        Debug.Log($"Available cards in Assets/CardData ({cards.Count}):");
-        foreach (var card in cards)
+        var allCards = GetAllCards();
+        var obtainedCards = allCards.Where(card => card.IsObtained).ToList();
+        var unobtainedCards = allCards.Where(card => !card.IsObtained).ToList();
+        
+        Debug.Log($"Total cards in Assets/CardData: {allCards.Count}");
+        Debug.Log($"Obtained cards ({obtainedCards.Count}):");
+        foreach (var card in obtainedCards)
         {
-            Debug.Log($"- {card.Title} ({card.Type})");
+            Debug.Log($"- {card.Title} ({card.Type}, {card.CharacterClass})");
+        }
+        
+        if (unobtainedCards.Count > 0)
+        {
+            Debug.Log($"\nUnobtained cards ({unobtainedCards.Count}):");
+            foreach (var card in unobtainedCards)
+            {
+                Debug.Log($"- {card.Title} ({card.Type}, {card.CharacterClass}) [NOT OBTAINED]");
+            }
         }
     }
     

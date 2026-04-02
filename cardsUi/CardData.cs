@@ -35,6 +35,9 @@ public class CardData : ScriptableObject
     [Header("Advanced Properties (Optional)")]
     [SerializeField] private Rarity rarity = Rarity.Common;
     [SerializeField] private bool isLegendary = false;
+    
+    [Header("Obtainment Status")]
+    [SerializeField] private bool isObtained = true; // Default true for existing cards
 
     // Public properties for easy access
     public string Title => cardTitle;
@@ -48,6 +51,7 @@ public class CardData : ScriptableObject
     public Sprite CardSprite => cardSprite;
     public Rarity Rarity => rarity;
     public bool IsLegendary => isLegendary;
+    public bool IsObtained => isObtained;
 
     /// <summary>
     /// Validates the card data and returns any issues
@@ -70,6 +74,8 @@ public class CardData : ScriptableObject
 
         if (string.IsNullOrEmpty(imageUrl) && cardSprite == null)
             issues.Add("Either image URL or card sprite must be provided");
+            
+        // Note: isObtained can be false for cards that haven't been unlocked yet
 
         return issues;
     }
