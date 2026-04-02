@@ -18,6 +18,10 @@ public class CardFetcher : MonoBehaviour
     [SerializeField] private bool autoFetchOnStart = true;
     [SerializeField] private bool fetchNewCardOnClick = false;
     
+    [Header("Character Class Filter")]
+    [SerializeField] private bool useCharacterClassFilter = false;
+    [SerializeField] private CharacterClass filterByCharacterClass = CharacterClass.Any;
+    
     [Header("UI Elements - Auto Find")]
     [SerializeField] private bool autoFindUIElements = true;
     
@@ -191,11 +195,27 @@ public class CardFetcher : MonoBehaviour
 
     
     /// <summary>
-    /// Gets a random card from the available cards
+    /// Gets cards filtered by character class
+    /// </summary>
+    List<CardData> GetFilteredCards(CharacterClass characterClass = CharacterClass.Any)
+    {
+        var allCards = GetAllCards();
+        
+        if (characterClass == CharacterClass.Any)
+        {
+            return allCards;
+        }
+        
+        return allCards.Where(card => card.CharacterClass == characterClass || card.CharacterClass == CharacterClass.Any).ToList();
+    }
+    
+    /// <summary>
+    /// Gets a random card from the available cards, optionally filtered by character class
     /// </summary>
     CardData GetRandomCard()
     {
-        var cards = GetAllCards();
+        var cards = useCharacterClassFilter ? GetFilteredCards(filterByCharacterClass) : GetAllCards();
+        
         if (cards.Count > 0)
         {
             int randomIndex = Random.Range(0, cards.Count);
@@ -271,6 +291,34 @@ public class CardFetcher : MonoBehaviour
     /// </summary>
     public void FetchNewRandomCard()
     {
+        FetchAndDisplayCard();
+    }
+    
+    /// <summary>
+    /// Fetch a random card for a specific character class
+    /// </summary>
+    public void FetchCardForCharacterClass(CharacterClass characterClass)
+    {
+        var cards = GetFilteredCards(characterClass);
+        
+        if (cards.Count > 0)
+        {
+            int randomIndex = Random.Range(0, cards.Count);
+            DisplayCard(cards[randomIndex]);
+        }
+        else
+        {
+            Debug.LogWarning($"CardFetcher: No cards found for character class {characterClass}");
+        }
+    }
+    
+    /// <summary>
+    /// Set character class filter and fetch a new card
+    /// </summary>
+    public void SetCharacterClassFilter(CharacterClass characterClass)
+    {
+        useCharacterClassFilter = true;
+        filterByCharacterClass = characterClass;
         FetchAndDisplayCard();
     }
     

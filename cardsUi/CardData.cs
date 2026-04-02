@@ -18,6 +18,7 @@ public class CardData : ScriptableObject
     [SerializeField] private string cardTitle;
     [TextArea(3, 5)]
     [SerializeField] private string description;
+    [SerializeField] private CharacterClass characterClass = CharacterClass.Any;
 
     [Header("Card Properties")]
     [SerializeField] private CardType type = CardType.Attack;
@@ -32,7 +33,6 @@ public class CardData : ScriptableObject
     [SerializeField] private Sprite cardSprite; // Optional: direct sprite reference
 
     [Header("Advanced Properties (Optional)")]
-    [SerializeField] private int cardCost = 1; // Alternative to mana deduction
     [SerializeField] private Rarity rarity = Rarity.Common;
     [SerializeField] private bool isLegendary = false;
 
@@ -40,12 +40,12 @@ public class CardData : ScriptableObject
     public string Title => cardTitle;
     public string Description => description;
     public CardType Type => type;
+    public CharacterClass CharacterClass => characterClass;
     public int Damage => damage;
     public List<CardEffect> Effects => new List<CardEffect>(effects); // Return copy to prevent external modification
     public int ManaDeduction => manaDeduction;
     public string ImageUrl => imageUrl;
     public Sprite CardSprite => cardSprite;
-    public int CardCost => cardCost;
     public Rarity Rarity => rarity;
     public bool IsLegendary => isLegendary;
 
@@ -176,4 +176,15 @@ public enum Rarity
     Epic,
     Legendary,
     Mythic
+}
+
+/// <summary>
+/// Enum for character classes that can use specific cards
+/// </summary>
+[Serializable]
+public enum CharacterClass
+{
+    Any,     // Card can be used by any character
+    Warrior,
+    Mage
 }

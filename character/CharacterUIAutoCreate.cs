@@ -33,16 +33,38 @@ public class CharacterUIAutoCreate : MonoBehaviour
     
     private void Awake()
     {
+        // Only create UI in appropriate game scenes, not in menu scenes
+        if (!IsGameScene())
+        {
+            Destroy(gameObject);
+            return;
+        }
+        
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            // Removed DontDestroyOnLoad to prevent UI overlap across scenes
         }
         else
         {
             Destroy(gameObject);
             return;
         }
+    }
+    
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
+    
+    private bool IsGameScene()
+    {
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        // Character UI should only appear in main game scenes, not menu scenes
+        return sceneName == "MainScene" || sceneName == "GameScene" || sceneName == "BattleScene";
     }
     
     [ContextMenu("Auto Create Character UI")]
@@ -110,12 +132,12 @@ public class CharacterUIAutoCreate : MonoBehaviour
         
         RectTransform rect = panel.AddComponent<RectTransform>();
         
-        // Position in top-left corner with better sizing
+        // Position in top-left corner with horizontal sizing
         rect.anchorMin = new Vector2(0, 1);
         rect.anchorMax = new Vector2(0, 1);
         rect.pivot = new Vector2(0, 1);
         rect.anchoredPosition = new Vector2(15, -15); // Smaller margin
-        rect.sizeDelta = new Vector2(320, 180); // Better proportioned size
+        rect.sizeDelta = new Vector2(800, 50); // Wide horizontal layout
         
         // Add modern background with gradient effect
         Image panelImage = panel.AddComponent<Image>();
@@ -131,13 +153,15 @@ public class CharacterUIAutoCreate : MonoBehaviour
         outline.effectColor = new Color(0.3f, 0.5f, 0.8f, 0.8f); // Subtle blue outline
         outline.effectDistance = new Vector2(1, 1);
         
-        // Improved layout with better spacing
-        VerticalLayoutGroup layout = panel.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 4;
+        // Horizontal layout for row alignment
+        HorizontalLayoutGroup layout = panel.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 12;
         layout.padding = new RectOffset(12, 12, 8, 8); // Better padding
-        layout.childForceExpandWidth = true;
-        layout.childControlWidth = true;
-        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childControlWidth = false;
+        layout.childControlHeight = true;
+        layout.childForceExpandHeight = true;
+        layout.childAlignment = TextAnchor.MiddleCenter;
         
         return panel;
     }
@@ -146,66 +170,66 @@ public class CharacterUIAutoCreate : MonoBehaviour
     {
         Transform panel = uiSystem.characterPanel.transform;
         
-        // Character Name Header (no portrait for cleaner look)
-        GameObject nameRow = CreateCustomRow(panel, "Name Row", 25f);
-        uiSystem.nameText = CreateText(nameRow.transform, "Character Name", "Name Text", 15, 
-            TextAlignmentOptions.Center, new Vector2(280, 25)); // Explicit width to prevent wrapping
+        // Character Name (compact for horizontal layout)
+        GameObject nameSection = CreateHorizontalSection(panel, "Name Section", 100f);
+        uiSystem.nameText = CreateText(nameSection.transform, "Character Name", "Name Text", 12, 
+            TextAlignmentOptions.Center, new Vector2(100, 30));
         uiSystem.nameText.fontStyle = FontStyles.Bold;
-        uiSystem.nameText.color = new Color(0.9f, 0.9f, 1f, 1f); // Light blue tint
-        uiSystem.nameText.enableWordWrapping = false; // Force no wrapping
+        uiSystem.nameText.color = new Color(0.9f, 0.9f, 1f, 1f);
+        uiSystem.nameText.enableWordWrapping = false;
         uiSystem.nameText.overflowMode = TextOverflowModes.Overflow;
         
-        // HP Bar (improved spacing)
-        uiSystem.hpSlider = CreateImprovedSliderWithText(panel, "HP", uiSystem.hpBarColor, out uiSystem.hpText);
+        // HP Section
+        GameObject hpSection = CreateHorizontalSection(panel, "HP Section", 150f);
+        uiSystem.hpSlider = CreateHorizontalSliderWithText(hpSection.transform, "HP", uiSystem.hpBarColor, out uiSystem.hpText);
         
-        // Mana Bar
-        uiSystem.manaSlider = CreateImprovedSliderWithText(panel, "MP", uiSystem.manaBarColor, out uiSystem.manaText);
+        // Mana Section  
+        GameObject manaSection = CreateHorizontalSection(panel, "Mana Section", 150f);
+        uiSystem.manaSlider = CreateHorizontalSliderWithText(manaSection.transform, "MP", uiSystem.manaBarColor, out uiSystem.manaText);
         
-        // Gold (more compact)
-        GameObject goldRow = CreateCustomRow(panel, "Gold Row", 22f);
-        CreateText(goldRow.transform, "💰", "Gold Icon", 14, TextAlignmentOptions.MidlineLeft, new Vector2(25, 22));
-        uiSystem.goldText = CreateText(goldRow.transform, "0 Gold", "Gold Value", 12, 
-            TextAlignmentOptions.MidlineLeft, new Vector2(200, 22));
-        uiSystem.goldText.color = new Color(1f, 0.8f, 0f, 1f); // Golden color
+        // Gold Section (compact)
+        GameObject goldSection = CreateHorizontalSection(panel, "Gold Section", 120f);
+        CreateText(goldSection.transform, "💰", "Gold Icon", 14, TextAlignmentOptions.Center, new Vector2(20, 30));
+        uiSystem.goldText = CreateText(goldSection.transform, "0 Gold", "Gold Value", 10, 
+            TextAlignmentOptions.Center, new Vector2(100, 30));
+        uiSystem.goldText.color = new Color(1f, 0.8f, 0f, 1f);
         
-        // Effects Section (combined and more compact)
-        GameObject effectsSection = CreateCompactEffectsSection(panel);
+        // Effects Section (horizontal)
+        GameObject effectsSection = CreateHorizontalEffectsSection(panel);
         uiSystem.buffsParent = effectsSection.transform.Find("Buffs Container");
         uiSystem.debuffsParent = effectsSection.transform.Find("Debuffs Container");
     }
     
-    private static GameObject CreateCustomRow(Transform parent, string name, float height = 30f)
+    private static GameObject CreateHorizontalSection(Transform parent, string name, float width = 120f)
     {
-        GameObject row = new GameObject(name);
-        row.transform.SetParent(parent);
+        GameObject section = new GameObject(name);
+        section.transform.SetParent(parent);
         
-        RectTransform rect = row.AddComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(300, height); // Ensure row has proper width
+        RectTransform rect = section.AddComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(width, 30); // Fixed width for horizontal sections
         
-        HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 8;
-        layout.childControlWidth = false;
-        layout.childControlHeight = true;
-        layout.childForceExpandHeight = true;
-        layout.childForceExpandWidth = false; // Don't force expand width
-        layout.childAlignment = TextAnchor.MiddleLeft;
+        VerticalLayoutGroup layout = section.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 2;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childAlignment = TextAnchor.MiddleCenter;
         
-        return row;
+        return section;
     }
     
-    private static Slider CreateImprovedSliderWithText(Transform parent, string labelText, Color barColor, out TextMeshProUGUI valueText)
+    private static Slider CreateHorizontalSliderWithText(Transform parent, string labelText, Color barColor, out TextMeshProUGUI valueText)
     {
-        GameObject sliderRow = CreateCustomRow(parent, $"{labelText} Row", 25f);
+        // Compact label for horizontal layout
+        CreateText(parent, $"{labelText}:", "Label", 9, TextAlignmentOptions.Center, new Vector2(0, 12));
         
-        // Compact label
-        CreateText(sliderRow.transform, $"{labelText}:", "Label", 11, TextAlignmentOptions.MidlineLeft, new Vector2(28, 25));
-        
-        // Slider with improved design
+        // Slider with compact design
         GameObject sliderObj = new GameObject($"{labelText} Slider");
-        sliderObj.transform.SetParent(sliderRow.transform);
+        sliderObj.transform.SetParent(parent);
         
         RectTransform sliderRect = sliderObj.AddComponent<RectTransform>();
-        sliderRect.sizeDelta = new Vector2(160, 16); // Slightly taller, longer bar
+        sliderRect.sizeDelta = new Vector2(120, 12); // Compact horizontal bar
         
         Slider slider = sliderObj.AddComponent<Slider>();
         
@@ -253,37 +277,44 @@ public class CharacterUIAutoCreate : MonoBehaviour
         slider.fillRect = fillBarRect;
         slider.value = 1f;
         
-        // Compact value text
-        valueText = CreateText(sliderRow.transform, "100/100", "Value Text", 10, 
-            TextAlignmentOptions.MidlineRight, new Vector2(65, 25));
+        // Compact value text below slider
+        valueText = CreateText(parent, "100/100", "Value Text", 8, 
+            TextAlignmentOptions.Center, new Vector2(0, 10));
         valueText.color = new Color(0.9f, 0.9f, 0.9f, 1f); // Lighter text
         
         return slider;
     }
     
-    private static GameObject CreateCompactEffectsSection(Transform parent)
+    private static GameObject CreateHorizontalEffectsSection(Transform parent)
     {
-        GameObject effectsRow = CreateCustomRow(parent, "Effects Row", 50f);
+        GameObject effectsSection = CreateHorizontalSection(parent, "Effects Section", 180f);
+        
+        // Horizontal effects layout
+        GameObject effectsContainer = new GameObject("Effects Container");
+        effectsContainer.transform.SetParent(effectsSection.transform);
+        RectTransform effectsRect = effectsContainer.AddComponent<RectTransform>();
+        effectsRect.sizeDelta = new Vector2(0, 25);
+        
+        HorizontalLayoutGroup effectsLayout = effectsContainer.AddComponent<HorizontalLayoutGroup>();
+        effectsLayout.spacing = 8;
+        effectsLayout.childControlWidth = false;
+        effectsLayout.childControlHeight = true;
+        effectsLayout.childForceExpandHeight = true;
         
         // Buffs side
         GameObject buffsColumn = new GameObject("Buffs Column");
-        buffsColumn.transform.SetParent(effectsRow.transform);
+        buffsColumn.transform.SetParent(effectsContainer.transform);
         RectTransform buffsRect = buffsColumn.AddComponent<RectTransform>();
-        buffsRect.sizeDelta = new Vector2(145, 50);
+        buffsRect.sizeDelta = new Vector2(80, 25);
         
         VerticalLayoutGroup buffsLayout = buffsColumn.AddComponent<VerticalLayoutGroup>();
-        buffsLayout.spacing = 2;
+        buffsLayout.spacing = 1;
         buffsLayout.childControlHeight = false;
         buffsLayout.childForceExpandHeight = false;
         
-        // Buffs header
-        GameObject buffsHeader = new GameObject("Buffs Header");
-        buffsHeader.transform.SetParent(buffsColumn.transform);
-        RectTransform buffsHeaderRect = buffsHeader.AddComponent<RectTransform>();
-        buffsHeaderRect.sizeDelta = new Vector2(0, 16);
-        
-        TextMeshProUGUI buffsHeaderText = CreateText(buffsHeader.transform, "✓ Buffs", "Buffs Header Text", 10, 
-            TextAlignmentOptions.Center, new Vector2(0, 16));
+        // Compact buffs header
+        TextMeshProUGUI buffsHeaderText = CreateText(buffsColumn.transform, "✓ Buffs", "Buffs Header Text", 8, 
+            TextAlignmentOptions.Center, new Vector2(0, 10));
         buffsHeaderText.color = new Color(0.5f, 1f, 0.5f, 1f); // Light green
         buffsHeaderText.fontStyle = FontStyles.Bold;
         
@@ -291,33 +322,28 @@ public class CharacterUIAutoCreate : MonoBehaviour
         GameObject buffsContainer = new GameObject("Buffs Container");
         buffsContainer.transform.SetParent(buffsColumn.transform);
         RectTransform buffsContainerRect = buffsContainer.AddComponent<RectTransform>();
-        buffsContainerRect.sizeDelta = new Vector2(0, 30);
+        buffsContainerRect.sizeDelta = new Vector2(0, 15);
         
-        GridLayoutGroup buffsGrid = buffsContainer.AddComponent<GridLayoutGroup>();
-        buffsGrid.cellSize = new Vector2(12, 12);
-        buffsGrid.spacing = new Vector2(1, 1);
-        buffsGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-        buffsGrid.childAlignment = TextAnchor.UpperLeft;
+        HorizontalLayoutGroup buffsGrid = buffsContainer.AddComponent<HorizontalLayoutGroup>();
+        buffsGrid.spacing = 2;
+        buffsGrid.childControlWidth = false;
+        buffsGrid.childControlHeight = true;
+        buffsGrid.childForceExpandHeight = true;
         
         // Debuffs side
         GameObject debuffsColumn = new GameObject("Debuffs Column");
-        debuffsColumn.transform.SetParent(effectsRow.transform);
+        debuffsColumn.transform.SetParent(effectsContainer.transform);
         RectTransform debuffsRect = debuffsColumn.AddComponent<RectTransform>();
-        debuffsRect.sizeDelta = new Vector2(145, 50);
+        debuffsRect.sizeDelta = new Vector2(80, 25);
         
         VerticalLayoutGroup debuffsLayout = debuffsColumn.AddComponent<VerticalLayoutGroup>();
-        debuffsLayout.spacing = 2;
+        debuffsLayout.spacing = 1;
         debuffsLayout.childControlHeight = false;
         debuffsLayout.childForceExpandHeight = false;
         
-        // Debuffs header
-        GameObject debuffsHeader = new GameObject("Debuffs Header");
-        debuffsHeader.transform.SetParent(debuffsColumn.transform);
-        RectTransform debuffsHeaderRect = debuffsHeader.AddComponent<RectTransform>();
-        debuffsHeaderRect.sizeDelta = new Vector2(0, 16);
-        
-        TextMeshProUGUI debuffsHeaderText = CreateText(debuffsHeader.transform, "✗ Debuffs", "Debuffs Header Text", 10, 
-            TextAlignmentOptions.Center, new Vector2(0, 16));
+        // Compact debuffs header
+        TextMeshProUGUI debuffsHeaderText = CreateText(debuffsColumn.transform, "✗ Debuffs", "Debuffs Header Text", 8, 
+            TextAlignmentOptions.Center, new Vector2(0, 10));
         debuffsHeaderText.color = new Color(1f, 0.5f, 0.5f, 1f); // Light red
         debuffsHeaderText.fontStyle = FontStyles.Bold;
         
@@ -325,15 +351,15 @@ public class CharacterUIAutoCreate : MonoBehaviour
         GameObject debuffsContainer = new GameObject("Debuffs Container");
         debuffsContainer.transform.SetParent(debuffsColumn.transform);
         RectTransform debuffsContainerRect = debuffsContainer.AddComponent<RectTransform>();
-        debuffsContainerRect.sizeDelta = new Vector2(0, 30);
+        debuffsContainerRect.sizeDelta = new Vector2(0, 15);
         
-        GridLayoutGroup debuffsGrid = debuffsContainer.AddComponent<GridLayoutGroup>();
-        debuffsGrid.cellSize = new Vector2(12, 12);
-        debuffsGrid.spacing = new Vector2(1, 1);
-        debuffsGrid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-        debuffsGrid.childAlignment = TextAnchor.UpperLeft;
+        HorizontalLayoutGroup debuffsGrid = debuffsContainer.AddComponent<HorizontalLayoutGroup>();
+        debuffsGrid.spacing = 2;
+        debuffsGrid.childControlWidth = false;
+        debuffsGrid.childControlHeight = true;
+        debuffsGrid.childForceExpandHeight = true;
         
-        return effectsRow;
+        return effectsSection;
     }
     
     private static TextMeshProUGUI CreateText(Transform parent, string content, string name, int fontSize = 14, TextAlignmentOptions alignment = TextAlignmentOptions.Center, Vector2? size = null)
@@ -459,11 +485,15 @@ public class CharacterUIAutoCreate : MonoBehaviour
                 DestroyImmediate(child.gameObject);
         }
         
-        // Add current effects (compact grid style)
+        // Add current effects (horizontal compact style)
         foreach (var effect in effects)
         {
             GameObject effectObj = new GameObject(effect.effectName);
             effectObj.transform.SetParent(parent);
+            
+            RectTransform effectRect = effectObj.GetComponent<RectTransform>();
+            if (effectRect == null) effectRect = effectObj.AddComponent<RectTransform>();
+            effectRect.sizeDelta = new Vector2(10, 10); // Small horizontal indicators
             
             // Small indicator dot
             Image effectImage = effectObj.AddComponent<Image>();
