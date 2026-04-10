@@ -34,6 +34,11 @@ public class HandManager : MonoBehaviour
     public System.Action<int> OnHandSizeChanged;
     public System.Action<int> OnActiveCardsChanged;
     
+    // Events for card selection and inspection
+    public System.Action<CardInspector> OnCardSelected;
+    public System.Action<CardInspector> OnCardDeselected;
+    public System.Action<CardInspector, CardData> OnCardConfirmed;
+    
     void Start()
     {
         if (autoSetupOnStart)

@@ -43,6 +43,9 @@ public class CardFetcher : MonoBehaviour
     [SerializeField] private Color healCardColor = new Color(0.8f, 0.8f, 0.2f, 1f);
     [SerializeField] private Color specialCardColor = new Color(0.6f, 0.2f, 0.8f, 1f);
     
+    // Currently displayed card
+    private CardData currentCard = null;
+    
     // Cached list of all available cards
     private static List<CardData> allCards = null;
     
@@ -234,6 +237,9 @@ public class CardFetcher : MonoBehaviour
     {
         if (card == null) return;
         
+        // Store the current card
+        currentCard = card;
+        
         // Update text elements
         if (cardNameText != null)
             cardNameText.text = card.Title;
@@ -287,6 +293,14 @@ public class CardFetcher : MonoBehaviour
             default:
                 return specialCardColor;
         }
+    }
+    
+    /// <summary>
+    /// Gets the currently displayed card data
+    /// </summary>
+    public CardData GetCurrentCard()
+    {
+        return currentCard;
     }
     
     /// <summary>
