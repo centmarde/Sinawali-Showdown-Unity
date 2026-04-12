@@ -694,10 +694,25 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
             rarityText.color = GetColorForRarity(card.Rarity);
         }
         
-        // Set character class
+        // Set character compatibility
         if (characterClassText != null)
         {
-            characterClassText.text = $"Class: {card.CharacterClass}";
+            string characterInfo = "";
+            
+            if (card.IsUniversalCard)
+            {
+                characterInfo = "Universal";
+            }
+            else if (card.CompatibleCharacterTypes != null && card.CompatibleCharacterTypes.Count > 0)
+            {
+                characterInfo = string.Join(", ", card.CompatibleCharacterTypes);
+            }
+            else
+            {
+                characterInfo = "None";
+            }
+            
+            characterClassText.text = $"Compatible: {characterInfo}";
         }
         
         // Set effects

@@ -1,8 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.Networking;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -18,9 +20,10 @@ public class CardFetcher : MonoBehaviour
     [SerializeField] private bool autoFetchOnStart = true;
     [SerializeField] private bool fetchNewCardOnClick = false;
     
-    [Header("Character Class Filter")]
-    [SerializeField] private bool useCharacterClassFilter = false;
-    [SerializeField] private CharacterClass filterByCharacterClass = CharacterClass.Any;
+    [Header("Character Type Filter")]
+    [SerializeField] private bool useCharacterTypeFilter = false;
+    [SerializeField] private string filterByCharacterType = "Warrior";
+    [SerializeField] private CharacterData filterBySpecificCharacter = null; // Optional: filter by specific character
     
     [Header("UI Elements - Auto Find")]
     [SerializeField] private bool autoFindUIElements = true;
@@ -42,6 +45,12 @@ public class CardFetcher : MonoBehaviour
     [SerializeField] private Color buffCardColor = new Color(0.2f, 0.8f, 0.2f, 1f);
     [SerializeField] private Color healCardColor = new Color(0.8f, 0.8f, 0.2f, 1f);
     [SerializeField] private Color specialCardColor = new Color(0.6f, 0.2f, 0.8f, 1f);
+    
+    [Header("Image Loading Settings")]
+    [SerializeField] private bool prioritizeCardData = true;
+    [SerializeField] private Sprite defaultCardSprite = null;
+    [SerializeField] private bool loadFromUrlIfSpriteNull = true;
+    [SerializeField] private float imageLoadTimeout = 5f;
     
     // Currently displayed card
     private CardData currentCard = null;
@@ -198,34 +207,153 @@ public class CardFetcher : MonoBehaviour
 
     
     /// <summary>
-    /// Gets cards filtered by character class and obtainment status
+    /// Gets cards filtered by character type and obtainment status
     /// </summary>
-    List<CardData> GetFilteredCards(CharacterClass characterClass = CharacterClass.Any)
+    List<CardData> GetFilteredCards(string characterType = "Any")
     {
         var allCards = GetAllCards();
         
         // First filter by obtainment status (only include obtained cards)
-        var obtainedCards = allCards.Where(card => card.IsObtained).ToList();
+        var obtainedCards = allCards.Where(card => card != null && card.IsObtained).ToList();
         
-        if (characterClass == CharacterClass.Any)
+        // Validate character type input - no more "Any" allowed
+        if (string.IsNullOrEmpty(characterType) || characterType.Equals("Any", System.StringComparison.OrdinalIgnoreCase))
         {
-            return obtainedCards;
+            if (showDebugInfo)
+            {
+                Debug.LogWarning($"CardFetcher: Invalid character type '{characterType}' - strict filtering requires specific character types. Returning no cards.");
+            }
+            return new List<CardData>(); // Return empty list for invalid types
         }
         
-        return obtainedCards.Where(card => card.CharacterClass == characterClass || card.CharacterClass == CharacterClass.Any).ToList();
+        // Filter by specific character type
+        var filteredCards = obtainedCards.Where(card => 
+        {
+            try 
+            {
+                return card.CanBeUsedByCharacterType(characterType);
+            }
+            catch (System.Exception ex)
+            {
+                if (showDebugInfo)
+                {
+                    Debug.LogWarning($"CardFetcher: Error checking character type compatibility for card '{card.Title}': {ex.Message}");
+                }
+                return false;
+            }
+        }).ToList();
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Filtered by character type '{characterType}' - found {filteredCards.Count} compatible cards out of {obtainedCards.Count} obtained cards");
+        }
+        
+        return filteredCards;
     }
     
     /// <summary>
-    /// Gets a random card from the available cards, optionally filtered by character class
+    /// Gets cards filtered by specific character and obtainment status
+    /// </summary>
+    List<CardData> GetFilteredCardsForCharacter(CharacterData character)
+    {
+        var allCards = GetAllCards();
+        
+        // First filter by obtainment status (only include obtained cards)
+        var obtainedCards = allCards.Where(card => card != null && card.IsObtained).ToList();
+        
+        if (character == null)
+        {
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: No character specified - returning all {obtainedCards.Count} obtained cards");
+            }
+            return obtainedCards;
+        }
+        
+        // Validate character data
+        if (string.IsNullOrEmpty(character.characterType))
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning($"CardFetcher: Character '{character.characterName}' has no character type set - treating as universal");
+            }
+            return obtainedCards;
+        }
+        
+        // Filter by specific character
+        var filteredCards = obtainedCards.Where(card => 
+        {
+            try 
+            {
+                return card.CanBeUsedByCharacter(character);
+            }
+            catch (System.Exception ex)
+            {
+                if (showDebugInfo)
+                {
+                    Debug.LogWarning($"CardFetcher: Error checking character compatibility for card '{card.Title}' with character '{character.characterName}': {ex.Message}");
+                }
+                return false;
+            }
+        }).ToList();
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Filtered by character '{character.characterName}' (type: {character.characterType}) - found {filteredCards.Count} compatible cards out of {obtainedCards.Count} obtained cards");
+        }
+        
+        return filteredCards;
+    }
+    
+    /// <summary>
+    /// Gets a random card from the available cards, optionally filtered by character type
     /// </summary>
     CardData GetRandomCard()
     {
-        var cards = useCharacterClassFilter ? GetFilteredCards(filterByCharacterClass) : GetAllCards();
+        List<CardData> cards;
+        string filterDescription = "";
+        
+        // Apply filters in order of priority: Specific Character > Character Type > Universal Cards Only
+        if (filterBySpecificCharacter != null)
+        {
+            cards = GetFilteredCardsForCharacter(filterBySpecificCharacter);
+            filterDescription = $"specific character '{filterBySpecificCharacter.characterName}' (type: {filterBySpecificCharacter.characterType})";
+        }
+        else if (useCharacterTypeFilter && !string.IsNullOrEmpty(filterByCharacterType))
+        {
+            cards = GetFilteredCards(filterByCharacterType);
+            filterDescription = $"character type '{filterByCharacterType}'";
+        }
+        else
+        {
+            // Strict filtering: only return universal cards when no filter is set
+            var allCards = GetAllCards();
+            cards = allCards.Where(card => card != null && card.IsObtained && card.IsUniversalCard).ToList();
+            filterDescription = "no character filter (universal cards only)";
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Getting random card with filter: {filterDescription} - {cards.Count} cards available");
+        }
         
         if (cards.Count > 0)
         {
             int randomIndex = Random.Range(0, cards.Count);
-            return cards[randomIndex];
+            CardData selectedCard = cards[randomIndex];
+            
+            if (showDebugInfo)
+            {
+                string characterInfo = selectedCard.IsUniversalCard ? "Universal" : string.Join(", ", selectedCard.CompatibleCharacterTypes);
+                Debug.Log($"CardFetcher: Selected random card '{selectedCard.Title}' (compatible with: {characterInfo})");
+            }
+            
+            return selectedCard;
+        }
+        
+        if (showDebugInfo)
+        {
+            Debug.LogWarning($"CardFetcher: No cards available with filter: {filterDescription}");
         }
         return null;
     }
@@ -256,10 +384,10 @@ public class CardFetcher : MonoBehaviour
         if (manaText != null)
             manaText.text = card.ManaDeduction.ToString();
         
-        // Update card artwork
-        if (cardArtwork != null && card.CardSprite != null)
+        // Update card artwork with priority system
+        if (cardArtwork != null)
         {
-            cardArtwork.sprite = card.CardSprite;
+            UpdateCardArtwork(card);
         }
         
         // Update card colors based on type
@@ -274,6 +402,119 @@ public class CardFetcher : MonoBehaviour
         if (showDebugInfo)
         {
             Debug.Log($"CardFetcher: Displayed random card '{card.Title}' on {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// Updates card artwork with priority system: CardSprite -> ImageUrl -> Default
+    /// </summary>
+    void UpdateCardArtwork(CardData card)
+    {
+        if (!prioritizeCardData)
+        {
+            // Use original behavior if prioritization is disabled
+            if (card.CardSprite != null)
+            {
+                cardArtwork.sprite = card.CardSprite;
+            }
+            return;
+        }
+        
+        // Priority 1: Use CardSprite if available
+        if (card.CardSprite != null)
+        {
+            cardArtwork.sprite = card.CardSprite;
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Using CardSprite for '{card.Title}' on {gameObject.name}");
+            }
+            return;
+        }
+        
+        // Priority 2: Load from ImageUrl if available
+        if (!string.IsNullOrEmpty(card.ImageUrl) && loadFromUrlIfSpriteNull)
+        {
+            StartCoroutine(LoadImageFromUrl(card.ImageUrl, card.Title));
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Loading image from URL for '{card.Title}' on {gameObject.name}");
+            }
+            return;
+        }
+        
+        // Priority 3: Use default sprite as fallback
+        if (defaultCardSprite != null)
+        {
+            cardArtwork.sprite = defaultCardSprite;
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Using default sprite for '{card.Title}' on {gameObject.name}");
+            }
+        }
+        else
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning($"CardFetcher: No image available for '{card.Title}' on {gameObject.name} - no sprite, URL, or default sprite provided");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Loads an image from URL and applies it to the card artwork
+    /// </summary>
+    IEnumerator LoadImageFromUrl(string url, string cardTitle)
+    {
+        UnityWebRequest request = UnityWebRequestTexture.GetTexture(url);
+        request.timeout = (int)imageLoadTimeout;
+        
+        yield return request.SendWebRequest();
+        
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Texture2D texture = DownloadHandlerTexture.GetContent(request);
+            if (texture != null)
+            {
+                // Create sprite from downloaded texture
+                Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.one * 0.5f);
+                cardArtwork.sprite = sprite;
+                
+                if (showDebugInfo)
+                {
+                    Debug.Log($"CardFetcher: Successfully loaded image from URL for '{cardTitle}' on {gameObject.name}");
+                }
+            }
+            else
+            {
+                HandleImageLoadFailure(cardTitle, "Downloaded texture is null");
+            }
+        }
+        else
+        {
+            HandleImageLoadFailure(cardTitle, request.error);
+        }
+        
+        request.Dispose();
+    }
+    
+    /// <summary>
+    /// Handles image loading failures with fallback behavior
+    /// </summary>
+    void HandleImageLoadFailure(string cardTitle, string error)
+    {
+        if (showDebugInfo)
+        {
+            Debug.LogWarning($"CardFetcher: Failed to load image from URL for '{cardTitle}' on {gameObject.name}: {error}");
+        }
+        
+        // Fall back to default sprite if available
+        if (defaultCardSprite != null)
+        {
+            cardArtwork.sprite = defaultCardSprite;
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Applied default sprite as fallback for '{cardTitle}' on {gameObject.name}");
+            }
         }
     }
     
@@ -312,11 +553,11 @@ public class CardFetcher : MonoBehaviour
     }
     
     /// <summary>
-    /// Fetch a random card for a specific character class
+    /// Fetch a random card for a specific character type
     /// </summary>
-    public void FetchCardForCharacterClass(CharacterClass characterClass)
+    public void FetchCardForCharacterType(string characterType)
     {
-        var cards = GetFilteredCards(characterClass);
+        var cards = GetFilteredCards(characterType);
         
         if (cards.Count > 0)
         {
@@ -325,18 +566,160 @@ public class CardFetcher : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"CardFetcher: No cards found for character class {characterClass}");
+            Debug.LogWarning($"CardFetcher: No cards found for character type '{characterType}'");
         }
     }
     
     /// <summary>
-    /// Set character class filter and fetch a new card
+    /// Fetch a random card for a specific character
     /// </summary>
-    public void SetCharacterClassFilter(CharacterClass characterClass)
+    public void FetchCardForCharacter(CharacterData character)
     {
-        useCharacterClassFilter = true;
-        filterByCharacterClass = characterClass;
-        FetchAndDisplayCard();
+        var cards = GetFilteredCardsForCharacter(character);
+        
+        if (cards.Count > 0)
+        {
+            int randomIndex = Random.Range(0, cards.Count);
+            DisplayCard(cards[randomIndex]);
+        }
+        else
+        {
+            string characterName = character != null ? character.characterName : "null";
+            Debug.LogWarning($"CardFetcher: No cards found for character '{characterName}'");
+        }
+    }
+    
+    /// <summary>
+    /// Set character type filter and fetch a new card
+    /// </summary>
+    public void SetCharacterTypeFilter(string characterType)
+    {
+        // Normalize and validate input
+        if (string.IsNullOrEmpty(characterType))
+        {
+            characterType = "Any";
+        }
+        
+        // Only update and fetch if the filter actually changed
+        if (!useCharacterTypeFilter || !filterByCharacterType.Equals(characterType, System.StringComparison.OrdinalIgnoreCase))
+        {
+            useCharacterTypeFilter = true;
+            filterByCharacterType = characterType;
+            filterBySpecificCharacter = null; // Clear specific character filter
+            
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Set character type filter to '{characterType}' on {gameObject.name}");
+            }
+            
+            FetchAndDisplayCard();
+        }
+        else if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Character type filter '{characterType}' already active on {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// Set specific character filter and fetch a new card
+    /// </summary>
+    public void SetCharacterFilter(CharacterData character)
+    {
+        // Validate input
+        if (character != null && string.IsNullOrEmpty(character.characterType))
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning($"CardFetcher: Character '{character.characterName}' has no character type set - this may affect filtering");
+            }
+        }
+        
+        // Only update and fetch if the filter actually changed
+        if (filterBySpecificCharacter != character)
+        {
+            filterBySpecificCharacter = character;
+            useCharacterTypeFilter = false; // Clear type filter when using specific character
+            
+            if (showDebugInfo)
+            {
+                string characterInfo = character != null ? $"'{character.characterName}' (type: {character.characterType})" : "null";
+                Debug.Log($"CardFetcher: Set specific character filter to {characterInfo} on {gameObject.name}");
+            }
+            
+            FetchAndDisplayCard();
+        }
+        else if (showDebugInfo)
+        {
+            string characterInfo = character != null ? $"'{character.characterName}'" : "null";
+            Debug.Log($"CardFetcher: Character filter {characterInfo} already active on {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// Clear all character filters and fetch a new card
+    /// </summary>
+    public void ClearCharacterFilters()
+    {
+        // Only update and fetch if filters were actually active
+        if (useCharacterTypeFilter || filterBySpecificCharacter != null)
+        {
+            useCharacterTypeFilter = false;
+            filterBySpecificCharacter = null;
+            
+            if (showDebugInfo)
+            {
+                Debug.Log($"CardFetcher: Cleared all character filters on {gameObject.name}");
+            }
+            
+            FetchAndDisplayCard();
+        }
+        else if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: No character filters to clear on {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// Get current filter status for debugging
+    /// </summary>
+    public string GetCurrentFilterStatus()
+    {
+        if (filterBySpecificCharacter != null)
+        {
+            return $"Character: {filterBySpecificCharacter.characterName} ({filterBySpecificCharacter.characterType})";
+        }
+        else if (useCharacterTypeFilter)
+        {
+            return $"Type: {filterByCharacterType}";
+        }
+        else
+        {
+            return "No Filter";
+        }
+    }
+    
+    /// <summary>
+    /// Sets the default sprite to use as fallback when no card image is available
+    /// </summary>
+    public void SetDefaultSprite(Sprite sprite)
+    {
+        defaultCardSprite = sprite;
+    }
+    
+    /// <summary>
+    /// Enables or disables the card data prioritization system
+    /// </summary>
+    public void SetPrioritizeCardData(bool prioritize)
+    {
+        prioritizeCardData = prioritize;
+    }
+    
+    /// <summary>
+    /// Enables or disables URL loading when sprite is null
+    /// </summary>
+    public void SetLoadFromUrl(bool loadFromUrl)
+    {
+        loadFromUrlIfSpriteNull = loadFromUrl;
     }
     
     #if UNITY_EDITOR
@@ -351,7 +734,13 @@ public class CardFetcher : MonoBehaviour
         Debug.Log($"Obtained cards ({obtainedCards.Count}):");
         foreach (var card in obtainedCards)
         {
-            Debug.Log($"- {card.Title} ({card.Type}, {card.CharacterClass})");
+            string imageInfo = "";
+            if (card.CardSprite != null) imageInfo += "[Sprite]";
+            if (!string.IsNullOrEmpty(card.ImageUrl)) imageInfo += "[URL]";
+            if (string.IsNullOrEmpty(imageInfo)) imageInfo = "[No Image]";
+            
+            string characterInfo = card.IsUniversalCard ? "Universal" : string.Join(", ", card.CompatibleCharacterTypes);
+            Debug.Log($"- {card.Title} ({card.Type}, {characterInfo}) {imageInfo}");
         }
         
         if (unobtainedCards.Count > 0)
@@ -359,7 +748,8 @@ public class CardFetcher : MonoBehaviour
             Debug.Log($"\nUnobtained cards ({unobtainedCards.Count}):");
             foreach (var card in unobtainedCards)
             {
-                Debug.Log($"- {card.Title} ({card.Type}, {card.CharacterClass}) [NOT OBTAINED]");
+                string characterInfo = card.IsUniversalCard ? "Universal" : string.Join(", ", card.CompatibleCharacterTypes);
+                Debug.Log($"- {card.Title} ({card.Type}, {characterInfo}) [NOT OBTAINED]");
             }
         }
     }
@@ -375,6 +765,98 @@ public class CardFetcher : MonoBehaviour
     public void FetchNewRandomCardMenu()
     {
         FetchNewRandomCard();
+    }
+    
+    [ContextMenu("Debug: Set Warrior Filter")]
+    public void DebugSetWarriorFilter()
+    {
+        SetCharacterTypeFilter("Warrior");
+    }
+    
+    [ContextMenu("Debug: Set Mage Filter")]
+    public void DebugSetMageFilter()
+    {
+        SetCharacterTypeFilter("Mage");
+    }
+    
+    [ContextMenu("Debug: Show Universal Cards Only")]
+    public void DebugShowUniversalCardsOnly()
+    {
+        ClearCharacterFilters(); // This will now show only universal cards
+    }
+    
+    [ContextMenu("Debug: Set Rogue Filter")]
+    public void DebugSetRogueFilter()
+    {
+        SetCharacterTypeFilter("Rogue");
+    }
+    
+    [ContextMenu("Debug: Clear All Filters")]
+    public void DebugClearAllFilters()
+    {
+        ClearCharacterFilters();
+    }
+    
+    [ContextMenu("Test Image Priority System")]
+    public void TestImagePrioritySystem()
+    {
+        if (currentCard != null)
+        {
+            Debug.Log($"Testing image priority for: {currentCard.Title}");
+            Debug.Log($"- Has CardSprite: {currentCard.CardSprite != null}");
+            Debug.Log($"- Has ImageUrl: {!string.IsNullOrEmpty(currentCard.ImageUrl)}");
+            Debug.Log($"- Has Default Sprite: {defaultCardSprite != null}");
+            Debug.Log($"- Priority Mode: {prioritizeCardData}");
+            Debug.Log($"- Load from URL: {loadFromUrlIfSpriteNull}");
+            Debug.Log($"- Character Types: {(currentCard.IsUniversalCard ? "Universal" : string.Join(", ", currentCard.CompatibleCharacterTypes))}");
+            Debug.Log($"- Current Filter: {GetCurrentFilterStatus()}");
+            
+            // Re-apply the image to test the priority system
+            if (cardArtwork != null)
+            {
+                UpdateCardArtwork(currentCard);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No current card to test. Fetch a card first.");
+        }
+    }
+    
+    [ContextMenu("Test Character Filtering")]
+    public void TestCharacterFiltering()
+    {
+        Debug.Log($"CardFetcher: Testing character filtering on {gameObject.name}");
+        Debug.Log($"- Current Filter: {GetCurrentFilterStatus()}");
+        
+        var allCards = GetAllCards();
+        var obtainedCards = allCards.Where(card => card != null && card.IsObtained).ToList();
+        
+        Debug.Log($"- Total Cards: {allCards.Count}");
+        Debug.Log($"- Obtained Cards: {obtainedCards.Count}");
+        
+        if (filterBySpecificCharacter != null)
+        {
+            var filteredCards = GetFilteredCardsForCharacter(filterBySpecificCharacter);
+            Debug.Log($"- Cards for Character '{filterBySpecificCharacter.characterName}': {filteredCards.Count}");
+        }
+        else if (useCharacterTypeFilter)
+        {
+            var filteredCards = GetFilteredCards(filterByCharacterType);
+            Debug.Log($"- Cards for Type '{filterByCharacterType}': {filteredCards.Count}");
+        }
+        
+        // Test a random fetch
+        CardData randomCard = GetRandomCard();
+        if (randomCard != null)
+        {
+            string compatibility = randomCard.IsUniversalCard ? "Universal" : string.Join(", ", randomCard.CompatibleCharacterTypes);
+            Debug.Log($"- Random Card Result: '{randomCard.Title}' (Compatible with: {compatibility})");
+        }
+        else
+        {
+            Debug.Log("- Random Card Result: No cards available with current filter");
+        }
     }
     #endif
 }

@@ -18,7 +18,11 @@ public class CardData : ScriptableObject
     [SerializeField] private string cardTitle;
     [TextArea(3, 5)]
     [SerializeField] private string description;
-    [SerializeField] private CharacterClass characterClass = CharacterClass.Any;
+    
+    [Header("Character Compatibility")]
+    [SerializeField] private List<string> compatibleCharacterTypes = new List<string>();
+    [SerializeField] private bool isUniversalCard = false; // Can be used by any character (rare)
+    [SerializeField] private List<CharacterData> specificCharacters = new List<CharacterData>(); // Optional: specific character references
 
     [Header("Card Properties")]
     [SerializeField] private CardType type = CardType.Attack;
@@ -43,7 +47,9 @@ public class CardData : ScriptableObject
     public string Title => cardTitle;
     public string Description => description;
     public CardType Type => type;
-    public CharacterClass CharacterClass => characterClass;
+    public List<string> CompatibleCharacterTypes => new List<string>(compatibleCharacterTypes); // Return copy
+    public bool IsUniversalCard => isUniversalCard;
+    public List<CharacterData> SpecificCharacters => new List<CharacterData>(specificCharacters); // Return copy
     public int Damage => damage;
     public List<CardEffect> Effects => new List<CardEffect>(effects); // Return copy to prevent external modification
     public int ManaDeduction => manaDeduction;
@@ -74,6 +80,9 @@ public class CardData : ScriptableObject
 
         if (string.IsNullOrEmpty(imageUrl) && cardSprite == null)
             issues.Add("Either image URL or card sprite must be provided");
+            
+        if (compatibleCharacterTypes.Count == 0 && specificCharacters.Count == 0 && !isUniversalCard)
+            issues.Add("Card must have at least one compatible character type, specific character, or be marked as universal");
             
         // Note: isObtained can be false for cards that haven't been unlocked yet
 
@@ -113,6 +122,82 @@ public class CardData : ScriptableObject
     public void RemoveEffect(CardEffect effect)
     {
         effects.Remove(effect);
+    }
+    
+    /// <summary>
+    /// Checks if a character can use this card based on character type or specific character reference
+    /// </summary>
+    public bool CanBeUsedByCharacter(CharacterData character)
+    {
+        if (character == null) return false;
+        
+        // Universal cards can be used by anyone
+        if (isUniversalCard) return true;
+        
+        // Check if character is in specific characters list
+        if (specificCharacters.Contains(character)) return true;
+        
+        // Check if character type is compatible (strict matching)
+        if (compatibleCharacterTypes.Contains(character.characterType)) return true;
+        
+        // Check if character is marked as universal class
+        if (character.isUniversalClass) return true;
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Checks if a character type can use this card
+    /// </summary>
+    public bool CanBeUsedByCharacterType(string characterType)
+    {
+        if (string.IsNullOrEmpty(characterType)) return false;
+        
+        // Universal cards can be used by anyone
+        if (isUniversalCard) return true;
+        
+        // Check if character type is compatible (strict matching)
+        if (compatibleCharacterTypes.Contains(characterType)) return true;
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Adds a character type to the compatibility list
+    /// </summary>
+    public void AddCompatibleCharacterType(string characterType)
+    {
+        if (!string.IsNullOrEmpty(characterType) && !compatibleCharacterTypes.Contains(characterType))
+        {
+            compatibleCharacterTypes.Add(characterType);
+        }
+    }
+    
+    /// <summary>
+    /// Removes a character type from the compatibility list
+    /// </summary>
+    public void RemoveCompatibleCharacterType(string characterType)
+    {
+        compatibleCharacterTypes.Remove(characterType);
+    }
+    
+    /// <summary>
+    /// Adds a specific character to the compatibility list
+    /// </summary>
+    public void AddSpecificCharacter(CharacterData character)
+    {
+        if (character != null && !specificCharacters.Contains(character))
+        {
+            specificCharacters.Add(character);
+        }
+    }
+    
+    /// <summary>
+    /// Removes a specific character from the compatibility list
+    /// </summary>
+    public void RemoveSpecificCharacter(CharacterData character)
+    {
+        specificCharacters.Remove(character);
     }
 
 #if UNITY_EDITOR
@@ -184,13 +269,5 @@ public enum Rarity
     Mythic
 }
 
-/// <summary>
-/// Enum for character classes that can use specific cards
-/// </summary>
-[Serializable]
-public enum CharacterClass
-{
-    Any,     // Card can be used by any character
-    Warrior,
-    Mage
-}
+// Note: CharacterClass enum removed - now using dynamic character type system
+// Cards reference CharacterData objects or character type strings for compatibility

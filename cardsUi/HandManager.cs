@@ -19,9 +19,10 @@ public class HandManager : MonoBehaviour
     [SerializeField] private bool autoSetupOnStart = true;
     [SerializeField] private bool fetchCardsOnSetup = true;
     
-    [Header("Character Class Filter")]
-    [SerializeField] private bool useCharacterClassFilter = true;
-    [SerializeField] private CharacterClass characterClassFilter = CharacterClass.Any;
+    [Header("Character Type Filter")]
+    [SerializeField] private bool useCharacterTypeFilter = true;
+    [SerializeField] private string characterTypeFilter = "Warrior";
+    [SerializeField] private CharacterData specificCharacterFilter = null; // Optional: filter by specific character
     
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
@@ -43,8 +44,8 @@ public class HandManager : MonoBehaviour
     {
         if (autoSetupOnStart)
         {
-            // Get character class from selected character if available
-            SetCharacterClassFromGameManager();
+            // Get character type from selected character if available
+            SetCharacterTypeFromGameManager();
             SetupHand();
         }
     }
@@ -65,7 +66,19 @@ public class HandManager : MonoBehaviour
         
         if (showDebugInfo)
         {
-            string filterInfo = useCharacterClassFilter ? $" with {characterClassFilter} filter" : " with no filter";
+            string filterInfo = "";
+            if (specificCharacterFilter != null)
+            {
+                filterInfo = $" with {specificCharacterFilter.characterName} character filter";
+            }
+            else if (useCharacterTypeFilter)
+            {
+                filterInfo = $" with {characterTypeFilter} type filter";
+            }
+            else
+            {
+                filterInfo = " with no filter";
+            }
             Debug.Log($"HandManager: Hand setup complete. Active cards: {GetActiveCardCount()}/{GetTotalCardCount()}{filterInfo}");
         }
     }
@@ -138,7 +151,7 @@ public class HandManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Fetches cards for all active CardFetcher components with character class filtering
+    /// Fetches cards for all active CardFetcher components with character type filtering
     /// </summary>
     public void FetchCardsForActiveHand()
     {
@@ -146,9 +159,17 @@ public class HandManager : MonoBehaviour
         {
             if (fetcher.enabled)
             {
-                if (useCharacterClassFilter)
+                if (specificCharacterFilter != null)
                 {
-                    fetcher.SetCharacterClassFilter(characterClassFilter);
+                    fetcher.SetCharacterFilter(specificCharacterFilter);
+                }
+                else if (useCharacterTypeFilter)
+                {
+                    fetcher.SetCharacterTypeFilter(characterTypeFilter);
+                }
+                else
+                {
+                    fetcher.ClearCharacterFilters();
                 }
                 fetcher.FetchAndDisplayCard();
             }
@@ -156,7 +177,15 @@ public class HandManager : MonoBehaviour
         
         if (showDebugInfo)
         {
-            string filterText = useCharacterClassFilter ? $" (filtered by {characterClassFilter})" : "";
+            string filterText = "";
+            if (specificCharacterFilter != null)
+            {
+                filterText = $" (filtered by character {specificCharacterFilter.characterName})";
+            }
+            else if (useCharacterTypeFilter)
+            {
+                filterText = $" (filtered by type {characterTypeFilter})";
+            }
             Debug.Log($"HandManager: Fetched cards for {activeCardFetchers.Count} active cards{filterText}");
         }
     }
@@ -188,9 +217,17 @@ public class HandManager : MonoBehaviour
                 
                 if (fetchCardsOnSetup)
                 {
-                    if (useCharacterClassFilter)
+                    if (specificCharacterFilter != null)
                     {
-                        fetcher.SetCharacterClassFilter(characterClassFilter);
+                        fetcher.SetCharacterFilter(specificCharacterFilter);
+                    }
+                    else if (useCharacterTypeFilter)
+                    {
+                        fetcher.SetCharacterTypeFilter(characterTypeFilter);
+                    }
+                    else
+                    {
+                        fetcher.ClearCharacterFilters();
                     }
                     fetcher.FetchAndDisplayCard();
                 }
@@ -313,108 +350,129 @@ public class HandManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Sets the character class filter for card fetching
+    /// Sets the character type filter for card fetching
     /// </summary>
-    public void SetCharacterClassFilter(CharacterClass characterClass)
+    public void SetCharacterTypeFilter(string characterType)
     {
-        characterClassFilter = characterClass;
-        useCharacterClassFilter = true;
+        characterTypeFilter = characterType;
+        useCharacterTypeFilter = true;
+        specificCharacterFilter = null; // Clear specific character filter
         
         if (showDebugInfo)
         {
-            Debug.Log($"HandManager: Set character class filter to {characterClass}");
+            Debug.Log($"HandManager: Set character type filter to {characterType}");
         }
     }
     
     /// <summary>
-    /// Gets character class from GameManager's selected character
+    /// Sets the specific character filter for card fetching
     /// </summary>
-    void SetCharacterClassFromGameManager()
+    public void SetCharacterFilter(CharacterData character)
+    {
+        specificCharacterFilter = character;
+        useCharacterTypeFilter = false; // Clear type filter when using specific character
+        
+        if (showDebugInfo)
+        {
+            string charName = character != null ? character.characterName : "null";
+            Debug.Log($"HandManager: Set specific character filter to {charName}");
+        }
+    }
+    
+    /// <summary>
+    /// Gets character type from GameManager's selected character
+    /// </summary>
+    void SetCharacterTypeFromGameManager()
     {
         // Check if GameManager exists and has a selected character
         if (GameManager.Instance != null && GameManager.Instance.GetSelectedCharacter() != null)
         {
             CharacterData selectedCharacter = GameManager.Instance.GetSelectedCharacter();
             
-            // Map character names to character classes (you can extend this logic)
-            CharacterClass detectedClass = GetCharacterClass(selectedCharacter);
+            // Use the character directly for filtering
+            specificCharacterFilter = selectedCharacter;
+            useCharacterTypeFilter = false; // Use specific character instead of type
             
-            if (detectedClass != CharacterClass.Any)
+            if (showDebugInfo)
             {
-                characterClassFilter = detectedClass;
-                useCharacterClassFilter = true;
-                
-                if (showDebugInfo)
-                {
-                    Debug.Log($"HandManager: Auto-set character class filter to {characterClassFilter} from selected character '{selectedCharacter.characterName}'");
-                }
-            }
-            else
-            {
-                if (showDebugInfo)
-                {
-                    Debug.Log($"HandManager: Could not determine character class for '{selectedCharacter.characterName}', using inspector settings");
-                }
+                Debug.Log($"HandManager: Auto-set character filter to '{selectedCharacter.characterName}' (type: {selectedCharacter.characterType})");
             }
         }
         else
         {
             if (showDebugInfo)
             {
-                Debug.Log("HandManager: No GameManager or selected character found, using inspector character class settings");
+                Debug.Log("HandManager: No GameManager or selected character found, using inspector character type settings");
             }
         }
     }
     
     /// <summary>
-    /// Determines character class based on character data
-    /// You can extend this logic based on your character naming or add a CharacterClass field to CharacterData
+    /// Gets the character type from character data
+    /// Now uses the dynamic characterType field from CharacterData
     /// </summary>
-    CharacterClass GetCharacterClass(CharacterData character)
+    string GetCharacterType(CharacterData character)
     {
-        if (character == null) return CharacterClass.Any;
+        if (character == null) return null; // Return null for invalid characters in strict mode
         
+        // Use the characterType field from CharacterData
+        if (!string.IsNullOrEmpty(character.characterType))
+        {
+            return character.characterType;
+        }
+        
+        // Fallback to name-based detection if characterType is not set
         string charName = character.characterName.ToLower();
         
         // Check for warrior-related names
         if (charName.Contains("warrior") || charName.Contains("knight") || charName.Contains("fighter") || 
             charName.Contains("guard") || charName.Contains("soldier") || charName.Contains("paladin"))
         {
-            return CharacterClass.Warrior;
+            return "Warrior";
         }
         
         // Check for mage-related names
         if (charName.Contains("mage") || charName.Contains("wizard") || charName.Contains("sorcerer") || 
             charName.Contains("witch") || charName.Contains("enchanter") || charName.Contains("elementalist"))
         {
-            return CharacterClass.Mage;
+            return "Mage";
         }
         
-        // Add more character class detection logic as needed
+        // Add more character type detection logic as needed
         // For example: Rogue, Cleric, Archer, etc.
         
-        return CharacterClass.Any; // Default to Any if no specific class detected
+        return "Warrior"; // Default to Warrior if no specific type detected in strict mode
     }
     
     /// <summary>
-    /// Disables character class filtering
+    /// Disables character type filtering
     /// </summary>
-    public void DisableCharacterClassFilter()
+    public void DisableCharacterTypeFilter()
     {
-        useCharacterClassFilter = false;
+        useCharacterTypeFilter = false;
+        specificCharacterFilter = null;
         
         if (showDebugInfo)
         {
-            Debug.Log($"HandManager: Disabled character class filter");
+            Debug.Log($"HandManager: Disabled character type filter");
         }
     }
     
     /// <summary>
-    /// Fetches new cards for active hand with current character class filter
+    /// Fetches new cards for active hand with character type filter
     /// </summary>
-    public void RefreshHandWithFilter(CharacterClass characterClass)
+    public void RefreshHandWithTypeFilter(string characterType)
     {
-        SetCharacterClassFilter(characterClass);
+        SetCharacterTypeFilter(characterType);
+        FetchCardsForActiveHand();
+    }
+    
+    /// <summary>
+    /// Fetches new cards for active hand with specific character filter
+    /// </summary>
+    public void RefreshHandWithCharacterFilter(CharacterData character)
+    {
+        SetCharacterFilter(character);
         FetchCardsForActiveHand();
     }
     
@@ -456,26 +514,26 @@ public class HandManager : MonoBehaviour
     [ContextMenu("Debug: Set Warrior Filter")]
     public void DebugSetWarriorFilter()
     {
-        RefreshHandWithFilter(CharacterClass.Warrior);
+        RefreshHandWithTypeFilter("Warrior");
     }
     
     [ContextMenu("Debug: Set Mage Filter")]
     public void DebugSetMageFilter()
     {
-        RefreshHandWithFilter(CharacterClass.Mage);
+        RefreshHandWithTypeFilter("Mage");
     }
     
     [ContextMenu("Debug: Remove Filter")]
     public void DebugRemoveFilter()
     {
-        DisableCharacterClassFilter();
+        DisableCharacterTypeFilter();
         FetchCardsForActiveHand();
     }
     
     [ContextMenu("Debug: Refresh From GameManager")]
     public void DebugRefreshFromGameManager()
     {
-        SetCharacterClassFromGameManager();
+        SetCharacterTypeFromGameManager();
         FetchCardsForActiveHand();
     }
     
@@ -485,8 +543,9 @@ public class HandManager : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.GetSelectedCharacter() != null)
         {
             CharacterData selected = GameManager.Instance.GetSelectedCharacter();
-            CharacterClass detectedClass = GetCharacterClass(selected);
-            Debug.Log($"Selected Character: {selected.characterName}, Detected Class: {detectedClass}, Current Filter: {characterClassFilter}");
+            string detectedType = GetCharacterType(selected);
+            string currentFilter = specificCharacterFilter != null ? specificCharacterFilter.characterName : characterTypeFilter;
+            Debug.Log($"Selected Character: {selected.characterName}, Character Type: {selected.characterType}, Detected Type: {detectedType}, Current Filter: {currentFilter}");
         }
         else
         {

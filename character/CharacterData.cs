@@ -16,7 +16,13 @@ public class CharacterData : ScriptableObject
 
     [Header("Character Info")]
     public string characterName = "New Character";
+    public string characterType = "Warrior"; // Character class/type for card filtering (must be specific)
     public Sprite characterPortrait;
+    
+    [Header("Character Class Details")]
+    [TextArea(2, 4)]
+    public string characterDescription = "A brave adventurer ready for battle.";
+    public bool isUniversalClass = false; // Can use any character-specific cards
     
     [Header("Effects")]
     public List<StatusEffect> debuffs = new List<StatusEffect>();
@@ -39,6 +45,12 @@ public class CharacterData : ScriptableObject
         if (!string.IsNullOrEmpty(characterName))
         {
             name = characterName;
+        }
+        
+        // Ensure character type is not empty and not "Any"
+        if (string.IsNullOrEmpty(characterType) || characterType.Equals("Any", System.StringComparison.OrdinalIgnoreCase))
+        {
+            characterType = "Warrior"; // Default to a specific type
         }
         
         // Validate the character data
@@ -73,6 +85,12 @@ public class CharacterData : ScriptableObject
             isValid = false;
         }
         
+        if (string.IsNullOrEmpty(characterType))
+        {
+            Debug.LogWarning($"Character {characterName}: Character type cannot be empty");
+            isValid = false;
+        }
+        
         return isValid;
     }
 
@@ -85,6 +103,9 @@ public class CharacterData : ScriptableObject
         startingHP = maxHP;
         startingMana = maxMana;
         characterName = "New Character";
+        characterType = "Warrior";
+        characterDescription = "A brave adventurer ready for battle.";
+        isUniversalClass = false;
         debuffs.Clear();
         buffs.Clear();
     }
