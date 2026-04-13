@@ -6,6 +6,15 @@ using System.Collections.Generic;
 using UnityEditor;
 #endif
 
+/// <summary>
+/// Character UI system for displaying character stats, health, mana, and effects.
+/// USAGE: This is now a TOOL-ONLY creation system. UI must be manually created via:
+/// - Unity Menu: Tools -> Character System -> Create Character UI
+/// - Context Menu: Right-click component -> "Auto Create Character UI"
+/// - Inspector Button: "Auto Create Character UI"
+/// 
+/// After creation, manually connect to character using "Find and Connect Character" or SetTrackedCharacter().
+/// </summary>
 public class CharacterUIAutoCreate : MonoBehaviour
 {
     public static CharacterUIAutoCreate Instance { get; private set; }
@@ -33,20 +42,15 @@ public class CharacterUIAutoCreate : MonoBehaviour
     
     private void Awake()
     {
-        // Only create UI in appropriate game scenes, not in menu scenes
-        if (!IsGameScene())
-        {
-            Destroy(gameObject);
-            return;
-        }
-        
+        // Singleton pattern for manually created UI systems
         if (Instance == null)
         {
             Instance = this;
-            // Removed DontDestroyOnLoad to prevent UI overlap across scenes
+            // Note: UI must be manually created via editor tools
         }
         else
         {
+            Debug.LogWarning("Multiple CharacterUI instances detected. Destroying duplicate.");
             Destroy(gameObject);
             return;
         }
@@ -63,7 +67,7 @@ public class CharacterUIAutoCreate : MonoBehaviour
     private bool IsGameScene()
     {
         string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-        // Character UI should only appear in main game scenes, not menu scenes
+        // Helper method for scene detection (reference only - UI is now manually created)
         return sceneName == "MainScene" || sceneName == "GameScene" || sceneName == "BattleScene";
     }
     

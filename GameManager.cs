@@ -175,21 +175,9 @@ public class GameManager : MonoBehaviour
         }
         else if (characterUI == null && activeCharacterObject != null)
         {
-            // Only auto-create Character UI if we're in a main game scene and have an active character
-            Debug.Log("Auto-creating Character UI for main game scene");
-            CharacterUIAutoCreate.CreateCharacterUI();
-            
-            // Try connecting again after creation
-            characterUI = FindObjectOfType<CharacterUIAutoCreate>();
-            if (characterUI != null)
-            {
-                Character characterComponent = activeCharacterObject.GetComponent<Character>();
-                if (characterComponent != null)
-                {
-                    characterUI.SetTrackedCharacter(characterComponent);
-                    Debug.Log($"Auto-created and connected Character UI to {selectedCharacterData.characterName}");
-                }
-            }
+            // Character UI must now be manually created via editor tools
+            Debug.LogWarning($"Character UI not found for {selectedCharacterData.characterName}. " +
+                           "Create Character UI manually via Tools → Character System → Create Character UI");
         }
     }
     
