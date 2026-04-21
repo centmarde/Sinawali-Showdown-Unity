@@ -108,6 +108,16 @@ public class GameManager : MonoBehaviour
         
         Debug.Log($"Setting up character {selectedCharacterData.characterName} in scene {currentSceneName}");
 
+        // If a TwoPlayerSpawner exists, let it control Player1/Player2 spawning + placement.
+        TwoPlayerSpawner spawner = FindObjectOfType<TwoPlayerSpawner>();
+        if (spawner != null)
+        {
+            spawner.SpawnFromGameState();
+            activeCharacterObject = spawner.SpawnedPlayer1;
+            NotifyHPTrackerBinder();
+            return;
+        }
+
         // Prefer explicit Player1 assignment via HPTrackerBinder for 2-player setups.
         HPTrackerBinder binder = GetHPTrackerBinder();
         Character player1Character = GetPlayer1CharacterTarget(binder);
