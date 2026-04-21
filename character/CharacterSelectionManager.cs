@@ -34,6 +34,9 @@ public class CharacterSelectionManager : MonoBehaviour
     private List<CharacterData> availableCharacters = new List<CharacterData>();
     private List<CharacterSelectionCard> characterCards = new List<CharacterSelectionCard>();
     private CharacterSelectionCard currentSelectedCard;
+
+    private const string CharacterNameAlon = "Alon";
+    private const string CharacterNameKidlat = "Kidlat";
     
     private void Awake()
     {
@@ -407,6 +410,57 @@ public class CharacterSelectionManager : MonoBehaviour
         }
         
         Debug.Log($"Selected character: {character.characterName}");
+
+        // Preview: if this scene has Player1/Player2 objects + UI, apply the swap immediately.
+        ApplyTwoPlayerPreviewIfPresent();
+    }
+
+    private void ApplyTwoPlayerPreviewIfPresent()
+    {
+        if (selectedCharacter == null) return;
+
+        HPTrackerBinder binder = FindObjectOfType<HPTrackerBinder>();
+        if (binder == null) return;
+
+        if (binder.player1Object == null || binder.player2Object == null) return;
+
+        Character p1 = binder.player1Object.GetComponent<Character>();
+        Character p2 = binder.player2Object.GetComponent<Character>();
+        if (p1 == null || p2 == null) return;
+
+        CharacterData other = GetOtherCharacterForPlayer2(selectedCharacter);
+        if (other == null) return;
+
+        p1.SetCharacterData(selectedCharacter);
+        p2.SetCharacterData(other);
+
+        // Ensure binder refreshes (in case UIs were created/changed)
+        binder.RefreshBindings();
+    }
+
+    private CharacterData GetOtherCharacterForPlayer2(CharacterData selected)
+    {
+        if (selected == null) return null;
+
+        // Explicit swap rule for Alon/Kidlat.
+        if (selected.characterName.Equals(CharacterNameAlon, System.StringComparison.OrdinalIgnoreCase))
+        {
+            return availableCharacters.FirstOrDefault(c => c != null && c.characterName.Equals(CharacterNameKidlat, System.StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (selected.characterName.Equals(CharacterNameKidlat, System.StringComparison.OrdinalIgnoreCase))
+        {
+            return availableCharacters.FirstOrDefault(c => c != null && c.characterName.Equals(CharacterNameAlon, System.StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Generic fallback: if exactly 2 characters exist, use the other one.
+        if (availableCharacters != null && availableCharacters.Count == 2)
+        {
+            return availableCharacters.FirstOrDefault(c => c != null && c != selected);
+        }
+
+        // Otherwise just pick the first different character.
+        return availableCharacters.FirstOrDefault(c => c != null && c != selected);
     }
     
     private void UpdateCharacterInfo()
@@ -449,6 +503,14 @@ public class CharacterSelectionManager : MonoBehaviour
         
         // Store selected character in persistent game manager
         GameManager.Instance.SetSelectedCharacter(selectedCharacter);
+
+        // If we can resolve the "other" character, persist it for Player2 override.
+        CharacterData other = GetOtherCharacterForPlayer2(selectedCharacter);
+        if (other != null)
+        {
+            GameManager.Instance.overridePlayer2FromSelection = true;
+            GameManager.Instance.player2CharacterDataOverride = other;
+        }
         
         Debug.Log($"Starting game with character: {selectedCharacter.characterName}");
         

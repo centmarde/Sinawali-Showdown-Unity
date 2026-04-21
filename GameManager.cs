@@ -14,6 +14,17 @@ public class GameManager : MonoBehaviour
     [Header("Game State")]
     public bool isCharacterSelected = false;
     public string currentSceneName;
+
+    [Header("Optional References")]
+    [Tooltip("Optional: assign a HPTrackerBinder in the scene. If empty, GameManager will try to find one.")]
+    public HPTrackerBinder hpTrackerBinder;
+
+    [Header("Two Player (Optional)")]
+    [Tooltip("If enabled, Player2 will be set from player2CharacterDataOverride (used for Alon/Kidlat swapping).")]
+    public bool overridePlayer2FromSelection = false;
+
+    [Tooltip("If overridePlayer2FromSelection is enabled, this CharacterData will be applied to Player2.")]
+    public CharacterData player2CharacterDataOverride;
     
     private void Awake()
     {
@@ -96,25 +107,39 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log($"Setting up character {selectedCharacterData.characterName} in scene {currentSceneName}");
-        
-        // Find existing Character component in scene
-        Character existingCharacter = FindObjectOfType<Character>();
-        
-        if (existingCharacter != null)
+
+        // Prefer explicit Player1 assignment via HPTrackerBinder for 2-player setups.
+        HPTrackerBinder binder = GetHPTrackerBinder();
+        Character player1Character = GetPlayer1CharacterTarget(binder);
+
+        if (player1Character != null)
         {
-            // Use existing Character component
-            existingCharacter.SetCharacterData(selectedCharacterData);
-            activeCharacterObject = existingCharacter.gameObject;
-            Debug.Log($"Updated existing Character component with {selectedCharacterData.characterName}");
+            player1Character.SetCharacterData(selectedCharacterData);
+            activeCharacterObject = player1Character.gameObject;
+            Debug.Log($"Applied selected character to Player1: {selectedCharacterData.characterName}");
         }
         else
         {
-            // Create new character object
-            CreateCharacterInScene();
+            // Fallback for single-character scenes
+            Character existingCharacter = FindObjectOfType<Character>();
+            if (existingCharacter != null)
+            {
+                existingCharacter.SetCharacterData(selectedCharacterData);
+                activeCharacterObject = existingCharacter.gameObject;
+                Debug.Log($"Updated existing Character component with {selectedCharacterData.characterName}");
+            }
+            else
+            {
+                // Create new character object
+                CreateCharacterInScene();
+            }
         }
+
+        // Player2 is expected to be configured manually in the inspector on its Character component.
+        ApplyOrValidatePlayer2Setup(binder);
         
-        // Setup Character UI if it exists
-        SetupCharacterUI();
+        // Notify HP/UI tracker systems (optional)
+        NotifyHPTrackerBinder();
     }
     
     private void CreateCharacterInScene()
@@ -126,6 +151,73 @@ public class GameManager : MonoBehaviour
         activeCharacterObject = characterObj;
         
         Debug.Log($"Created new character object: {selectedCharacterData.characterName}");
+    }
+
+    private HPTrackerBinder GetHPTrackerBinder()
+    {
+        if (hpTrackerBinder != null) return hpTrackerBinder;
+        hpTrackerBinder = FindObjectOfType<HPTrackerBinder>();
+        return hpTrackerBinder;
+    }
+
+    private static Character GetPlayer1CharacterTarget(HPTrackerBinder binder)
+    {
+        if (binder == null) return null;
+        if (binder.player1Object == null) return null;
+
+        Character c = binder.player1Object.GetComponent<Character>();
+        if (c == null)
+        {
+            Debug.LogWarning("HPTrackerBinder.player1Object has no Character component. Player1 cannot be auto-assigned.");
+        }
+        return c;
+    }
+
+    private static void ValidatePlayer2Setup(HPTrackerBinder binder)
+    {
+        if (binder == null) return;
+        if (binder.player2Object == null) return;
+
+        Character p2 = binder.player2Object.GetComponent<Character>();
+        if (p2 == null)
+        {
+            Debug.LogWarning("Player2 object is assigned on HPTrackerBinder but has no Character component.");
+            return;
+        }
+
+        if (p2.characterData == null)
+        {
+            Debug.LogWarning("Player2 Character has no CharacterData assigned. Assign it in the Character component inspector (Player2 keeps its inspector CharacterData).");
+        }
+    }
+
+    private void ApplyOrValidatePlayer2Setup(HPTrackerBinder binder)
+    {
+        if (binder == null || binder.player2Object == null)
+        {
+            return;
+        }
+
+        Character p2 = binder.player2Object.GetComponent<Character>();
+        if (p2 == null)
+        {
+            Debug.LogWarning("Player2 object is assigned on HPTrackerBinder but has no Character component.");
+            return;
+        }
+
+        if (overridePlayer2FromSelection && player2CharacterDataOverride != null)
+        {
+            p2.SetCharacterData(player2CharacterDataOverride);
+            Debug.Log($"Applied override character to Player2: {player2CharacterDataOverride.characterName}");
+        }
+        else
+        {
+            // Keep manual inspector configuration.
+            if (p2.characterData == null)
+            {
+                Debug.LogWarning("Player2 Character has no CharacterData assigned. Assign it in the Character component inspector.");
+            }
+        }
     }
     
     private void CleanupPreviousCharacter()
@@ -152,32 +244,35 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    private void SetupCharacterUI()
+    private void NotifyHPTrackerBinder()
     {
-        // Only create UI in main game scenes
+        // Keep HP/UI tracking logic outside GameManager.
+        // If a HPTrackerBinder exists in the scene and its Player1 slot is empty,
+        // we bind the active character object to it.
         if (!IsMainGameScene(currentSceneName))
         {
-            Debug.Log($"Skipping Character UI setup - {currentSceneName} is not a main game scene");
             return;
         }
-        
-        // Find and connect to Character UI if it exists
-        CharacterUIAutoCreate characterUI = FindObjectOfType<CharacterUIAutoCreate>();
-        
-        if (characterUI != null && activeCharacterObject != null)
+
+        if (activeCharacterObject == null)
         {
-            Character characterComponent = activeCharacterObject.GetComponent<Character>();
-            if (characterComponent != null)
-            {
-                characterUI.SetTrackedCharacter(characterComponent);
-                Debug.Log($"Connected Character UI to {selectedCharacterData.characterName}");
-            }
+            return;
         }
-        else if (characterUI == null && activeCharacterObject != null)
+
+        HPTrackerBinder binder = GetHPTrackerBinder();
+        if (binder == null)
         {
-            // Character UI must now be manually created via editor tools
-            Debug.LogWarning($"Character UI not found for {selectedCharacterData.characterName}. " +
-                           "Create Character UI manually via Tools → Character System → Create Character UI");
+            return;
+        }
+
+        if (binder.player1Object == null)
+        {
+            binder.SetPlayer1(activeCharacterObject);
+        }
+        else
+        {
+            // Respect manual inspector assignments; just re-bind in case UI/player refs changed.
+            binder.RefreshBindings();
         }
     }
     

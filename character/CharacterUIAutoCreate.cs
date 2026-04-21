@@ -17,7 +17,21 @@ using UnityEditor;
 /// </summary>
 public class CharacterUIAutoCreate : MonoBehaviour
 {
+    // Backwards-compatible reference (no longer enforces a global singleton)
     public static CharacterUIAutoCreate Instance { get; private set; }
+
+    public enum PlayerSlot
+    {
+        Player1,
+        Player2
+    }
+
+    [Header("Player Slot")]
+    [Tooltip("Which player this UI panel represents. Allows Player1 and Player2 UIs to coexist.")]
+    public PlayerSlot playerSlot = PlayerSlot.Player1;
+
+    private static CharacterUIAutoCreate player1Instance;
+    private static CharacterUIAutoCreate player2Instance;
     
     [Header("UI References")]
     public Canvas characterCanvas;
@@ -42,26 +56,48 @@ public class CharacterUIAutoCreate : MonoBehaviour
     
     private void Awake()
     {
-        // Singleton pattern for manually created UI systems
-        if (Instance == null)
+        // Allow multiple UI instances, but only one per PlayerSlot.
+        CharacterUIAutoCreate existingForSlot = GetInstanceForSlot(playerSlot);
+        if (existingForSlot != null && existingForSlot != this)
         {
-            Instance = this;
-            // Note: UI must be manually created via editor tools
-        }
-        else
-        {
-            Debug.LogWarning("Multiple CharacterUI instances detected. Destroying duplicate.");
+            Debug.LogWarning($"Multiple CharacterUI instances detected for {playerSlot}. Destroying duplicate.");
             Destroy(gameObject);
             return;
+        }
+
+        SetInstanceForSlot(playerSlot, this);
+
+        // Keep a convenient reference for older code paths (typically Player1).
+        if (Instance == null || playerSlot == PlayerSlot.Player1)
+        {
+            Instance = this;
         }
     }
     
     private void OnDestroy()
     {
+        if (GetInstanceForSlot(playerSlot) == this)
+        {
+            SetInstanceForSlot(playerSlot, null);
+        }
+
         if (Instance == this)
         {
             Instance = null;
         }
+    }
+
+    public static CharacterUIAutoCreate GetInstanceForSlot(PlayerSlot slot)
+    {
+        return slot == PlayerSlot.Player1 ? player1Instance : player2Instance;
+    }
+
+    private static void SetInstanceForSlot(PlayerSlot slot, CharacterUIAutoCreate instance)
+    {
+        if (slot == PlayerSlot.Player1)
+            player1Instance = instance;
+        else
+            player2Instance = instance;
     }
     
     private bool IsGameScene()
@@ -79,16 +115,22 @@ public class CharacterUIAutoCreate : MonoBehaviour
     
     public static void CreateCharacterUI()
     {
-        // Check if UI already exists
-        if (FindObjectOfType<CharacterUIAutoCreate>() != null)
+        // Create Player1 first, then Player2 if Player1 already exists.
+        PlayerSlot slotToCreate;
+        if (GetInstanceForSlot(PlayerSlot.Player1) == null)
+            slotToCreate = PlayerSlot.Player1;
+        else if (GetInstanceForSlot(PlayerSlot.Player2) == null)
+            slotToCreate = PlayerSlot.Player2;
+        else
         {
-            Debug.Log("Character UI already exists!");
+            Debug.Log("Character UI for Player1 and Player2 already exists!");
             return;
         }
-        
+
         // Create main UI object
-        GameObject uiObject = new GameObject("Character UI System");
+        GameObject uiObject = new GameObject($"Character UI System - {slotToCreate}");
         CharacterUIAutoCreate uiSystem = uiObject.AddComponent<CharacterUIAutoCreate>();
+        uiSystem.playerSlot = slotToCreate;
         
         // Create Canvas
         uiSystem.characterCanvas = CreateCanvas(uiObject);
@@ -99,7 +141,7 @@ public class CharacterUIAutoCreate : MonoBehaviour
         // Create UI elements
         CreateCharacterUIElements(uiSystem);
         
-        Debug.Log("Character UI System created successfully in top-left corner!");
+        Debug.Log($"Character UI System created successfully for {slotToCreate}!");
     }
     
     private static Canvas CreateCanvas(GameObject parent)
