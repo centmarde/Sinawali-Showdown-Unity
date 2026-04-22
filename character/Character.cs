@@ -89,6 +89,18 @@ public class Character : MonoBehaviour
         }
         return false;
     }
+
+    /// <summary>
+    /// Spends mana but clamps at 0 (never goes negative). Useful for prototyping
+    /// card systems where you always want UI to reflect the cost immediately.
+    /// </summary>
+    public void SpendManaClamped(int amount)
+    {
+        if (amount <= 0) return;
+
+        currentMana = Mathf.Max(0, currentMana - amount);
+        OnManaChanged?.Invoke(currentMana, GetMaxMana());
+    }
     
     public void RestoreMana(int amount)
     {

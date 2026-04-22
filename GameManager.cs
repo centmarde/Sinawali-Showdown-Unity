@@ -1,4 +1,5 @@
-  using UnityEngine;
+using System.Collections.Generic;
+using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -19,6 +20,14 @@ public class GameManager : MonoBehaviour
     [Tooltip("Optional: assign a HPTrackerBinder in the scene. If empty, GameManager will try to find one.")]
     public HPTrackerBinder hpTrackerBinder;
 
+    [Header("Turn System")]
+    [Tooltip("Optional: assign a TurnManager in the scene. If empty, GameManager will try to find one or add one to itself.")]
+    public TurnManager turnManager;
+
+    [Header("Graveyard")]
+    [Tooltip("Cards that have been played/confirmed. Stored as ScriptableObject references.")]
+    [SerializeField] private List<CardData> graveyardCards = new List<CardData>();
+
     [Header("Two Player (Optional)")]
     [Tooltip("If enabled, Player2 will be set from player2CharacterDataOverride (used for Alon/Kidlat swapping).")]
     public bool overridePlayer2FromSelection = false;
@@ -34,6 +43,20 @@ public class GameManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             Debug.Log("GameManager initialized and persisting across scenes.");
+
+            // Optional turn system hookup
+            if (turnManager == null)
+            {
+                turnManager = GetComponent<TurnManager>();
+                if (turnManager == null)
+                {
+                    turnManager = FindObjectOfType<TurnManager>();
+                }
+                if (turnManager == null)
+                {
+                    turnManager = gameObject.AddComponent<TurnManager>();
+                }
+            }
         }
         else
         {
@@ -168,6 +191,85 @@ public class GameManager : MonoBehaviour
         if (hpTrackerBinder != null) return hpTrackerBinder;
         hpTrackerBinder = FindObjectOfType<HPTrackerBinder>();
         return hpTrackerBinder;
+    }
+
+    /// <summary>
+    /// Attempts to resolve Player1/Player2 Character components for gameplay logic (cards, turns, etc.).
+    /// Prefers HPTrackerBinder assignments when present.
+    /// </summary>
+    public bool TryGetPlayerCharacters(out Character player1, out Character player2)
+    {
+        player1 = null;
+        player2 = null;
+
+        HPTrackerBinder binder = GetHPTrackerBinder();
+        if (binder != null)
+        {
+            if (binder.player1Object != null)
+            {
+                player1 = binder.player1Object.GetComponent<Character>();
+            }
+            if (binder.player2Object != null)
+            {
+                player2 = binder.player2Object.GetComponent<Character>();
+            }
+        }
+
+        if (player1 == null && activeCharacterObject != null)
+        {
+            player1 = activeCharacterObject.GetComponent<Character>();
+        }
+
+        // Fallbacks for single-character scenes / misconfigured binder
+        if (player1 == null)
+        {
+            Character[] all = FindObjectsOfType<Character>();
+            if (all != null && all.Length > 0)
+            {
+                player1 = all[0];
+            }
+        }
+
+        if (player2 == null)
+        {
+            Character[] all = FindObjectsOfType<Character>();
+            if (all != null)
+            {
+                for (int i = 0; i < all.Length; i++)
+                {
+                    if (all[i] != null && all[i] != player1)
+                    {
+                        player2 = all[i];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return player1 != null;
+    }
+
+    public void AddCardToGraveyard(CardData card)
+    {
+        if (card == null)
+        {
+            Debug.LogWarning("GameManager: Tried to add null card to graveyard.");
+            return;
+        }
+
+        graveyardCards.Add(card);
+        Debug.Log($"GameManager: Added '{card.Title}' to graveyard. Total: {graveyardCards.Count}");
+    }
+
+    public IReadOnlyList<CardData> GetGraveyardCards()
+    {
+        return graveyardCards;
+    }
+
+    public void ClearGraveyard()
+    {
+        graveyardCards.Clear();
+        Debug.Log("GameManager: Graveyard cleared.");
     }
 
     private static Character GetPlayer1CharacterTarget(HPTrackerBinder binder)
@@ -330,6 +432,52 @@ public class GameManager : MonoBehaviour
         }
         
         Debug.Log("Selected character reset.");
+    }
+
+    /// <summary>
+    /// Resets persistent game state when starting a new run from the Main Menu.
+    /// This intentionally does NOT destroy the GameManager singleton.
+    /// </summary>
+    public void ResetGameState()
+    {
+        // Reset selection + spawned character reference
+        ResetSelectedCharacter();
+
+        // Reset graveyard
+        ClearGraveyard();
+
+        // Reset turn system
+        if (turnManager != null)
+        {
+            turnManager.ResetTurn(TurnManager.TurnOwner.Player1);
+        }
+
+        // Reset optional overrides to a safe default
+        overridePlayer2FromSelection = false;
+        player2CharacterDataOverride = null;
+
+        // Reset any existing runtime characters (in case you returned to main menu
+        // with persistent objects still alive).
+        ResetRuntimeCharacterStates();
+
+        // Clear cached binder reference; next scene can provide a new binder
+        hpTrackerBinder = null;
+
+        Debug.Log("GameManager: Game state reset.");
+    }
+
+    private static void ResetRuntimeCharacterStates()
+    {
+        Character[] characters = FindObjectsOfType<Character>(true);
+        if (characters == null || characters.Length == 0) return;
+
+        for (int i = 0; i < characters.Length; i++)
+        {
+            Character c = characters[i];
+            if (c == null) continue;
+            if (c.characterData == null) continue;
+            c.ResetStats();
+        }
     }
     
     [ContextMenu("Debug Character Info")]

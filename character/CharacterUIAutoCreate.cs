@@ -278,6 +278,9 @@ public class CharacterUIAutoCreate : MonoBehaviour
         sliderRect.sizeDelta = new Vector2(120, 12); // Compact horizontal bar
         
         Slider slider = sliderObj.AddComponent<Slider>();
+        slider.minValue = 0f;
+        slider.maxValue = 100f;
+        slider.wholeNumbers = true;
         
         // Modern background with border
         GameObject background = new GameObject("Background");
@@ -321,7 +324,7 @@ public class CharacterUIAutoCreate : MonoBehaviour
         fillImage.color = barColor;
         
         slider.fillRect = fillBarRect;
-        slider.value = 1f;
+        slider.value = slider.maxValue;
         
         // Compact value text below slider
         valueText = CreateText(parent, "100/100", "Value Text", 8, 
@@ -484,20 +487,34 @@ public class CharacterUIAutoCreate : MonoBehaviour
     
     private void UpdateHP(int current, int max)
     {
-        if (hpSlider != null && hpText != null)
-        {
-            hpSlider.value = max > 0 ? (float)current / max : 0;
-            hpText.text = $"{current}/{max}";
-        }
+        if (hpSlider == null || hpText == null) return;
+
+        int safeMax = Mathf.Max(1, max);
+        int clampedCurrent = Mathf.Clamp(current, 0, safeMax);
+
+        // Drive the slider using real values (not 0..1) so it works with Whole Numbers
+        // and matches what you see in the inspector.
+        hpSlider.minValue = 0f;
+        hpSlider.maxValue = safeMax;
+        hpSlider.wholeNumbers = true;
+        hpSlider.value = clampedCurrent;
+
+        hpText.text = $"{clampedCurrent}/{safeMax}";
     }
     
     private void UpdateMana(int current, int max)
     {
-        if (manaSlider != null && manaText != null)
-        {
-            manaSlider.value = max > 0 ? (float)current / max : 0;
-            manaText.text = $"{current}/{max}";
-        }
+        if (manaSlider == null || manaText == null) return;
+
+        int safeMax = Mathf.Max(1, max);
+        int clampedCurrent = Mathf.Clamp(current, 0, safeMax);
+
+        manaSlider.minValue = 0f;
+        manaSlider.maxValue = safeMax;
+        manaSlider.wholeNumbers = true;
+        manaSlider.value = clampedCurrent;
+
+        manaText.text = $"{clampedCurrent}/{safeMax}";
     }
     
     private void UpdateGold(int gold)

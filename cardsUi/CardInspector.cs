@@ -57,6 +57,7 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
     // Static inspector management to prevent conflicts
     private static GameObject sharedInspectorPanel;
     private static CardInspector currentlySelectedCard;
+    private static bool sharedPanelButtonsWired;
     
     /// <summary>
     /// Ensure the inspector system is properly set up
@@ -256,18 +257,77 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
             if (confirmButton == null && (buttonName.Contains("confirm") || buttonName.Contains("accept") || buttonName.Contains("ok")))
             {
                 confirmButton = button;
-                confirmButton.onClick.AddListener(OnConfirmClicked);
             }
-            else if (cancelButton == null && (buttonName.Contains("cancel") || buttonName.Contains("close") || buttonName.Contains("back")))
+            else if (cancelButton == null && (buttonName.Contains("cancel") || buttonName.Contains("back")))
             {
                 cancelButton = button;
-                cancelButton.onClick.AddListener(OnCancelClicked);
             }
             else if (backgroundOverlay == null && (buttonName.Contains("background") || buttonName.Contains("overlay")))
             {
                 backgroundOverlay = button;
-                backgroundOverlay.onClick.AddListener(OnBackgroundClicked);
             }
+        }
+
+        // IMPORTANT: The inspector panel is shared. If every card adds listeners to the same
+        // Confirm/Cancel buttons, one click will confirm multiple cards. Wire the panel buttons
+        // only once and route actions to the currently selected card.
+        WireSharedPanelButtonsOnce();
+    }
+
+    private void WireSharedPanelButtonsOnce()
+    {
+        if (sharedPanelButtonsWired) return;
+
+        if (confirmButton != null)
+        {
+            confirmButton.onClick.RemoveAllListeners();
+            confirmButton.onClick.AddListener(ConfirmCurrentlySelectedFromUI);
+        }
+
+        if (cancelButton != null)
+        {
+            cancelButton.onClick.RemoveAllListeners();
+            cancelButton.onClick.AddListener(CancelCurrentlySelectedFromUI);
+        }
+
+        if (backgroundOverlay != null)
+        {
+            backgroundOverlay.onClick.RemoveAllListeners();
+            backgroundOverlay.onClick.AddListener(BackgroundClickedFromUI);
+        }
+
+        sharedPanelButtonsWired = true;
+    }
+
+    public static void ConfirmCurrentlySelectedFromUI()
+    {
+        if (currentlySelectedCard != null)
+        {
+            currentlySelectedCard.OnConfirmClicked();
+        }
+    }
+
+    public static void CancelCurrentlySelectedFromUI()
+    {
+        if (currentlySelectedCard != null)
+        {
+            currentlySelectedCard.OnCancelClicked();
+        }
+        else
+        {
+            HideInspectorStatic();
+        }
+    }
+
+    private static void BackgroundClickedFromUI()
+    {
+        if (currentlySelectedCard != null)
+        {
+            currentlySelectedCard.OnBackgroundClicked();
+        }
+        else
+        {
+            HideInspectorStatic();
         }
     }
     

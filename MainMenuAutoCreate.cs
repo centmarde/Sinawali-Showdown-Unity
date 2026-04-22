@@ -320,6 +320,12 @@ public class MainMenuAutoCreate : MonoBehaviour
     public void StartGame()
     {
         Debug.Log($"Starting game - Loading scene: {characterCreationSceneName}");
+
+        // Reset persistent state for a fresh run
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ResetGameState();
+        }
         
         // Check if scene exists in build settings
         if (DoesSceneExist(characterCreationSceneName))

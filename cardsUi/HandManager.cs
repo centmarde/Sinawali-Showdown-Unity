@@ -42,11 +42,94 @@ public class HandManager : MonoBehaviour
     
     void Start()
     {
+        // Listen to CardInspector confirmations (CardInspector invokes HandManager.OnCardConfirmed)
+        // so we can apply gameplay effects when a card is played.
+        OnCardConfirmed += HandleCardConfirmed;
+
         if (autoSetupOnStart)
         {
             // Get character type from selected character if available
             SetCharacterTypeFromGameManager();
             SetupHand();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        OnCardConfirmed -= HandleCardConfirmed;
+    }
+
+    private void HandleCardConfirmed(CardInspector inspector, CardData card)
+    {
+        if (card == null)
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning("HandManager: Confirmed card was null.");
+            }
+            return;
+        }
+
+        // Resolve player characters via GameManager (preferred) so HP/Mana UI updates fire.
+        Character player1 = null;
+        Character player2 = null;
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.TryGetPlayerCharacters(out player1, out player2);
+        }
+        else
+        {
+            // Fallback if GameManager isn't present.
+            HPTrackerBinder binder = FindObjectOfType<HPTrackerBinder>();
+            if (binder != null)
+            {
+                if (binder.player1Object != null) player1 = binder.player1Object.GetComponent<Character>();
+                if (binder.player2Object != null) player2 = binder.player2Object.GetComponent<Character>();
+            }
+        }
+
+        // Spend mana on Player1
+        if (player1 != null)
+        {
+            if (card.ManaDeduction > 0)
+            {
+                player1.SpendManaClamped(card.ManaDeduction);
+            }
+        }
+        else if (showDebugInfo)
+        {
+            Debug.LogWarning("HandManager: Could not resolve Player1 Character (mana not applied).");
+        }
+
+        // Deal damage to Player2
+        if (player2 != null)
+        {
+            if (card.Damage > 0)
+            {
+                player2.TakeDamage(card.Damage);
+            }
+        }
+        else if (showDebugInfo)
+        {
+            Debug.LogWarning("HandManager: Could not resolve Player2 Character (damage not applied).");
+        }
+
+        // Store played card in graveyard
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddCardToGraveyard(card);
+        }
+        else if (showDebugInfo)
+        {
+            Debug.LogWarning("HandManager: No GameManager.Instance found (graveyard not updated).");
+        }
+
+        if (showDebugInfo)
+        {
+            string p1Name = player1 != null ? player1.GetCharacterName() : "<none>";
+            string p2Name = player2 != null ? player2.GetCharacterName() : "<none>";
+            Debug.Log($"HandManager: Played '{card.Title}' | Mana -{card.ManaDeduction} on {p1Name} | Damage {card.Damage} to {p2Name}");
         }
     }
     

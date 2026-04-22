@@ -507,33 +507,25 @@ public class CardInspectorAutoCreate : MonoBehaviour
 
     void WireButtonActions(GameObject confirmBtn, GameObject cancelBtn)
     {
-        // Confirm: log "has been clicked"
+        // Confirm: confirm ONLY the currently selected card
         if (confirmBtn != null)
         {
             Button confirmButtonComponent = confirmBtn.GetComponent<Button>();
-            CardInspectorButtonActions actions = confirmBtn.GetComponent<CardInspectorButtonActions>();
-            if (actions == null) actions = confirmBtn.AddComponent<CardInspectorButtonActions>();
-            actions.SetInspectorPanelOverride(inspectorPanel);
-
             if (confirmButtonComponent != null)
             {
                 confirmButtonComponent.onClick.RemoveAllListeners();
-                confirmButtonComponent.onClick.AddListener(actions.Confirm);
+                confirmButtonComponent.onClick.AddListener(CardInspector.ConfirmCurrentlySelectedFromUI);
             }
         }
 
-        // Cancel: hide inspector
+        // Cancel: cancel the currently selected card and close inspector
         if (cancelBtn != null)
         {
             Button cancelButtonComponent = cancelBtn.GetComponent<Button>();
-            CardInspectorButtonActions actions = cancelBtn.GetComponent<CardInspectorButtonActions>();
-            if (actions == null) actions = cancelBtn.AddComponent<CardInspectorButtonActions>();
-            actions.SetInspectorPanelOverride(inspectorPanel);
-
             if (cancelButtonComponent != null)
             {
                 cancelButtonComponent.onClick.RemoveAllListeners();
-                cancelButtonComponent.onClick.AddListener(actions.Cancel);
+                cancelButtonComponent.onClick.AddListener(CardInspector.CancelCurrentlySelectedFromUI);
             }
         }
     }
@@ -745,6 +737,11 @@ public class CardInspectorAutoCreate : MonoBehaviour
         }
         
         // Subscribe to HandManager events for card selection
+        // (Remove first so persistent AutoCreate doesn't subscribe multiple times.)
+        handManager.OnCardSelected -= OnCardSelected;
+        handManager.OnCardDeselected -= OnCardDeselected;
+        handManager.OnCardConfirmed -= OnCardConfirmed;
+
         handManager.OnCardSelected += OnCardSelected;
         handManager.OnCardDeselected += OnCardDeselected;
         handManager.OnCardConfirmed += OnCardConfirmed;
