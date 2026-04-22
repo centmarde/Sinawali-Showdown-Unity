@@ -203,6 +203,29 @@ public class CardInspectorAutoCreate : MonoBehaviour
                 Debug.Log("CardInspectorAutoCreate: Created main canvas");
             }
         }
+
+        // Ensure the chosen canvas can receive UI clicks
+        if (mainCanvas != null)
+        {
+            if (mainCanvas.GetComponent<GraphicRaycaster>() == null)
+            {
+                mainCanvas.gameObject.AddComponent<GraphicRaycaster>();
+                if (showDebugInfo)
+                {
+                    Debug.Log($"CardInspectorAutoCreate: Added GraphicRaycaster to canvas '{mainCanvas.gameObject.name}'");
+                }
+            }
+
+            // For ScreenSpaceCamera / WorldSpace canvases, a camera is required for proper raycasting
+            if (mainCanvas.renderMode != RenderMode.ScreenSpaceOverlay && mainCanvas.worldCamera == null)
+            {
+                mainCanvas.worldCamera = Camera.main;
+                if (showDebugInfo)
+                {
+                    Debug.Log($"CardInspectorAutoCreate: Canvas '{mainCanvas.gameObject.name}' needs a camera; assigned Camera.main = {(Camera.main != null ? Camera.main.name : "NULL")}");
+                }
+            }
+        }
         
         // Ensure EventSystem exists
         if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
@@ -292,6 +315,7 @@ public class CardInspectorAutoCreate : MonoBehaviour
         // Create main inspector panel
         inspectorPanel = new GameObject("CardInspectorPanel");
         inspectorPanel.transform.SetParent(mainCanvas.transform, false);
+        inspectorPanel.transform.SetAsLastSibling();
         
         // Setup panel background
         Image panelBackground = inspectorPanel.AddComponent<Image>();
@@ -445,6 +469,9 @@ public class CardInspectorAutoCreate : MonoBehaviour
         
         // Create cancel button
         GameObject cancelBtn = CreateButton(buttonPanel, "CancelButton", "Cancel", cancelButtonColor);
+
+        // Wire confirm/cancel behavior
+        WireButtonActions(confirmBtn, cancelBtn);
         
         // Create close button (X) - make it more prominent
         GameObject closeBtn = CreateCloseButton(buttonPanel, "CloseButton");
@@ -475,6 +502,39 @@ public class CardInspectorAutoCreate : MonoBehaviour
                     inspectorPanel.SetActive(false);
                 }
             });
+        }
+    }
+
+    void WireButtonActions(GameObject confirmBtn, GameObject cancelBtn)
+    {
+        // Confirm: log "has been clicked"
+        if (confirmBtn != null)
+        {
+            Button confirmButtonComponent = confirmBtn.GetComponent<Button>();
+            CardInspectorButtonActions actions = confirmBtn.GetComponent<CardInspectorButtonActions>();
+            if (actions == null) actions = confirmBtn.AddComponent<CardInspectorButtonActions>();
+            actions.SetInspectorPanelOverride(inspectorPanel);
+
+            if (confirmButtonComponent != null)
+            {
+                confirmButtonComponent.onClick.RemoveAllListeners();
+                confirmButtonComponent.onClick.AddListener(actions.Confirm);
+            }
+        }
+
+        // Cancel: hide inspector
+        if (cancelBtn != null)
+        {
+            Button cancelButtonComponent = cancelBtn.GetComponent<Button>();
+            CardInspectorButtonActions actions = cancelBtn.GetComponent<CardInspectorButtonActions>();
+            if (actions == null) actions = cancelBtn.AddComponent<CardInspectorButtonActions>();
+            actions.SetInspectorPanelOverride(inspectorPanel);
+
+            if (cancelButtonComponent != null)
+            {
+                cancelButtonComponent.onClick.RemoveAllListeners();
+                cancelButtonComponent.onClick.AddListener(actions.Cancel);
+            }
         }
     }
     
@@ -511,6 +571,15 @@ public class CardInspectorAutoCreate : MonoBehaviour
         
         // Add Button component
         Button button = buttonGO.AddComponent<Button>();
+
+        // Explicit sizing so layout groups don't collapse it (keeps it clickable)
+        RectTransform buttonRect = buttonGO.GetComponent<RectTransform>();
+        buttonRect.sizeDelta = new Vector2(140f, 40f);
+        LayoutElement layoutElement = buttonGO.AddComponent<LayoutElement>();
+        layoutElement.minWidth = 120f;
+        layoutElement.preferredWidth = 140f;
+        layoutElement.minHeight = 40f;
+        layoutElement.preferredHeight = 40f;
         
         // Create button text
         GameObject textGO = new GameObject("Text");
@@ -551,6 +620,15 @@ public class CardInspectorAutoCreate : MonoBehaviour
         
         // Add Button component
         Button button = buttonGO.AddComponent<Button>();
+
+        // Explicit sizing so layout groups don't collapse it (keeps it clickable)
+        RectTransform buttonRect = buttonGO.GetComponent<RectTransform>();
+        buttonRect.sizeDelta = new Vector2(50f, 40f);
+        LayoutElement layoutElement = buttonGO.AddComponent<LayoutElement>();
+        layoutElement.minWidth = 50f;
+        layoutElement.preferredWidth = 50f;
+        layoutElement.minHeight = 40f;
+        layoutElement.preferredHeight = 40f;
         
         // Add hover effect colors
         ColorBlock colors = button.colors;
