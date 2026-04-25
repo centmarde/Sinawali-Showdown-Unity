@@ -125,11 +125,81 @@ public class HandManager : MonoBehaviour
             Debug.LogWarning("HandManager: No GameManager.Instance found (graveyard not updated).");
         }
 
+        // Discard/replace the played card in-hand by drawing a new one into the same UI slot.
+        RefillPlayedCardSlot(inspector);
+
         if (showDebugInfo)
         {
             string p1Name = player1 != null ? player1.GetCharacterName() : "<none>";
             string p2Name = player2 != null ? player2.GetCharacterName() : "<none>";
             Debug.Log($"HandManager: Played '{card.Title}' | Mana -{card.ManaDeduction} on {p1Name} | Damage {card.Damage} to {p2Name}");
+        }
+    }
+
+    private void RefillPlayedCardSlot(CardInspector inspector)
+    {
+        if (inspector == null)
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning("HandManager: CardInspector was null (cannot refill card slot).");
+            }
+            return;
+        }
+
+        CardFetcher fetcher = inspector.GetComponent<CardFetcher>();
+        if (fetcher == null)
+        {
+            fetcher = inspector.GetComponentInParent<CardFetcher>();
+        }
+
+        if (fetcher == null)
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning("HandManager: Could not find CardFetcher on confirmed card (cannot refill card slot).");
+            }
+            return;
+        }
+
+        // Keep the same filtering rules the hand currently uses.
+        // CardFetcher filter setters may auto-fetch, so we only fetch once.
+        string currentFilterStatus = fetcher.GetCurrentFilterStatus();
+
+        if (specificCharacterFilter != null)
+        {
+            string expectedPrefix = $"Character: {specificCharacterFilter.characterName}";
+            if (currentFilterStatus != null && currentFilterStatus.StartsWith(expectedPrefix))
+            {
+                fetcher.DiscardCurrentCardAndFetchReplacement();
+            }
+            else
+            {
+                fetcher.SetCharacterFilter(specificCharacterFilter); // auto-fetches when changed
+            }
+        }
+        else if (useCharacterTypeFilter)
+        {
+            string expected = $"Type: {characterTypeFilter}";
+            if (string.Equals(currentFilterStatus, expected, System.StringComparison.OrdinalIgnoreCase))
+            {
+                fetcher.DiscardCurrentCardAndFetchReplacement();
+            }
+            else
+            {
+                fetcher.SetCharacterTypeFilter(characterTypeFilter); // auto-fetches when changed
+            }
+        }
+        else
+        {
+            if (string.Equals(currentFilterStatus, "No Filter", System.StringComparison.OrdinalIgnoreCase))
+            {
+                fetcher.DiscardCurrentCardAndFetchReplacement();
+            }
+            else
+            {
+                fetcher.ClearCharacterFilters(); // auto-fetches when changed
+            }
         }
     }
     

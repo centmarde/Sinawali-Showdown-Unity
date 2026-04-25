@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -27,6 +28,8 @@ public class GameManager : MonoBehaviour
     [Header("Graveyard")]
     [Tooltip("Cards that have been played/confirmed. Stored as ScriptableObject references.")]
     [SerializeField] private List<CardData> graveyardCards = new List<CardData>();
+
+    public event Action<IReadOnlyList<CardData>> OnGraveyardChanged;
 
     [Header("Two Player (Optional)")]
     [Tooltip("If enabled, Player2 will be set from player2CharacterDataOverride (used for Alon/Kidlat swapping).")]
@@ -259,6 +262,7 @@ public class GameManager : MonoBehaviour
 
         graveyardCards.Add(card);
         Debug.Log($"GameManager: Added '{card.Title}' to graveyard. Total: {graveyardCards.Count}");
+        OnGraveyardChanged?.Invoke(graveyardCards);
     }
 
     public IReadOnlyList<CardData> GetGraveyardCards()
@@ -270,6 +274,7 @@ public class GameManager : MonoBehaviour
     {
         graveyardCards.Clear();
         Debug.Log("GameManager: Graveyard cleared.");
+        OnGraveyardChanged?.Invoke(graveyardCards);
     }
 
     private static Character GetPlayer1CharacterTarget(HPTrackerBinder binder)

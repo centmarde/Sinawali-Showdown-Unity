@@ -551,6 +551,16 @@ public class CardFetcher : MonoBehaviour
     {
         FetchAndDisplayCard();
     }
+
+    /// <summary>
+    /// Discards the currently displayed card (hand slot) and immediately draws a new one.
+    /// Note: "discard" here means replacing the UI slot; the previous CardData asset is not deleted.
+    /// </summary>
+    public void DiscardCurrentCardAndFetchReplacement()
+    {
+        currentCard = null;
+        FetchAndDisplayCard();
+    }
     
     /// <summary>
     /// Fetch a random card for a specific character type
