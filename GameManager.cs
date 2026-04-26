@@ -25,6 +25,9 @@ public class GameManager : MonoBehaviour
     [Tooltip("Optional: assign a TurnManager in the scene. If empty, GameManager will try to find one or add one to itself.")]
     public TurnManager turnManager;
 
+    [Tooltip("Who starts first when turn state is initialized/reset.")]
+    [SerializeField] private TurnManager.TurnOwner startingTurnOwner = TurnManager.TurnOwner.Player1;
+
     [Header("Graveyard")]
     [Tooltip("Cards that have been played/confirmed. Stored as ScriptableObject references.")]
     [SerializeField] private List<CardData> graveyardCards = new List<CardData>();
@@ -72,6 +75,7 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         currentSceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        RefreshTurnManagerReference();
     }
     
     private void OnEnable()
@@ -88,6 +92,7 @@ public class GameManager : MonoBehaviour
     {
         currentSceneName = scene.name;
         Debug.Log($"Scene loaded: {currentSceneName}");
+        RefreshTurnManagerReference(scene);
         
         // Clean up any previous character setup
         CleanupPreviousCharacter();
@@ -96,6 +101,44 @@ public class GameManager : MonoBehaviour
         if (isCharacterSelected && selectedCharacterData != null && IsMainGameScene(scene.name))
         {
             SetupCharacterInScene();
+        }
+    }
+
+    private void RefreshTurnManagerReference(UnityEngine.SceneManagement.Scene targetScene = default)
+    {
+        TurnManager preferredTurnManager = null;
+
+        UnityEngine.SceneManagement.Scene sceneToCheck = targetScene.IsValid() ? targetScene : UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (sceneToCheck.IsValid() && sceneToCheck.isLoaded)
+        {
+            GameObject[] roots = sceneToCheck.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                TurnManager candidate = roots[i].GetComponentInChildren<TurnManager>(true);
+                if (candidate != null)
+                {
+                    preferredTurnManager = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (preferredTurnManager == null)
+        {
+            preferredTurnManager = FindObjectOfType<TurnManager>();
+        }
+
+        if (preferredTurnManager != null)
+        {
+            if (turnManager != preferredTurnManager)
+            {
+                turnManager = preferredTurnManager;
+                Debug.Log($"GameManager: TurnManager reference updated to '{turnManager.name}' in scene '{turnManager.gameObject.scene.name}'.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("GameManager: No TurnManager found while refreshing reference.");
         }
     }
     
@@ -454,7 +497,7 @@ public class GameManager : MonoBehaviour
         // Reset turn system
         if (turnManager != null)
         {
-            turnManager.ResetTurn(TurnManager.TurnOwner.Player1);
+            turnManager.ResetTurn(GetStartingTurnOwner());
         }
 
         // Reset optional overrides to a safe default
@@ -469,6 +512,21 @@ public class GameManager : MonoBehaviour
         hpTrackerBinder = null;
 
         Debug.Log("GameManager: Game state reset.");
+    }
+
+    public TurnManager.TurnOwner GetStartingTurnOwner()
+    {
+        return startingTurnOwner;
+    }
+
+    public void SetStartingTurnOwner(TurnManager.TurnOwner owner, bool applyImmediately = false)
+    {
+        startingTurnOwner = owner;
+
+        if (applyImmediately && turnManager != null)
+        {
+            turnManager.ResetTurn(startingTurnOwner);
+        }
     }
 
     private static void ResetRuntimeCharacterStates()

@@ -529,8 +529,15 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
             cardOutline.effectDistance = new Vector2(2, 2);
         }
         
-        // Scale animation
-        StartCoroutine(AnimateScale(originalScale * 1.1f, animationDuration));
+        // Scale animation (guard against inactive objects)
+        if (isActiveAndEnabled && gameObject.activeInHierarchy)
+        {
+            StartCoroutine(AnimateScale(originalScale * 1.1f, animationDuration));
+        }
+        else
+        {
+            transform.localScale = originalScale * 1.1f;
+        }
     }
     
     /// <summary>
@@ -554,8 +561,15 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
             cardOutline.enabled = false;
         }
         
-        // Reset scale
-        StartCoroutine(AnimateScale(originalScale, animationDuration));
+        // Reset scale (guard against inactive objects)
+        if (isActiveAndEnabled && gameObject.activeInHierarchy)
+        {
+            StartCoroutine(AnimateScale(originalScale, animationDuration));
+        }
+        else
+        {
+            transform.localScale = originalScale;
+        }
     }
     
     /// <summary>
