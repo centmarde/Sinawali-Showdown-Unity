@@ -135,10 +135,46 @@ public class GameManager : MonoBehaviour
                 turnManager = preferredTurnManager;
                 Debug.Log($"GameManager: TurnManager reference updated to '{turnManager.name}' in scene '{turnManager.gameObject.scene.name}'.");
             }
+
+            RemoveDuplicateTurnManagers(preferredTurnManager);
         }
         else
         {
             Debug.LogWarning("GameManager: No TurnManager found while refreshing reference.");
+        }
+    }
+
+    private void RemoveDuplicateTurnManagers(TurnManager authoritative)
+    {
+        if (authoritative == null)
+        {
+            return;
+        }
+
+        TurnManager[] allManagers = FindObjectsOfType<TurnManager>(true);
+        if (allManagers == null || allManagers.Length <= 1)
+        {
+            return;
+        }
+
+        for (int i = 0; i < allManagers.Length; i++)
+        {
+            TurnManager candidate = allManagers[i];
+            if (candidate == null || candidate == authoritative)
+            {
+                continue;
+            }
+
+            Debug.LogWarning($"GameManager: Removing duplicate TurnManager '{candidate.name}' in scene '{candidate.gameObject.scene.name}'. Keeping '{authoritative.name}'.");
+
+            if (Application.isPlaying)
+            {
+                Destroy(candidate);
+            }
+            else
+            {
+                DestroyImmediate(candidate);
+            }
         }
     }
     
