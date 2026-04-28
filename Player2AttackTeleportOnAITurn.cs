@@ -36,6 +36,19 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
     [Tooltip("If true, rotates Player2 to face this object after teleporting.")]
     [SerializeField] private bool faceTargetAfterTeleport = true;
 
+    [Header("Facing / Inversion")]
+    [Tooltip("If enabled, uses the same non-standard prefab forward-axis offset as TwoPlayerSpawner (project prefabs are not +Z forward).")]
+    [SerializeField] private bool useProjectForwardAxisOffset = true;
+
+    [Tooltip("Yaw offset (degrees) applied after LookRotation. Keep this in sync with TwoPlayerSpawner.LookRotationNegativeX().")]
+    [SerializeField] private float lookYawOffsetDegrees = 60f;
+
+    [Tooltip("Optional. If set, this transform's localScale.x sign will be preserved while the attack animation plays (prevents animation clips from un-flipping the model).")]
+    [SerializeField] private Transform scaleLockRoot;
+
+    [Tooltip("If true, enforces the initial localScale.x sign during the attack sequence.")]
+    [SerializeField] private bool preserveLocalScaleXSignDuringAttack = false;
+
     [Tooltip("Prevents re-triggering while a sequence is already playing.")]
     [SerializeField] private bool ignoreWhileBusy = true;
 
@@ -99,6 +112,28 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
         Vector3 originalPosition = resolvedPlayer.position;
         Quaternion originalRotation = resolvedPlayer.rotation;
 
+        // Preserve the actor's original "forward axis" basis so we don't visibly flip
+        // when facing the target during the teleport attack (common when prefabs are
+        // authored with a non-Unity forward, e.g. -X instead of +Z).
+        Quaternion lookRotationOffset = Quaternion.identity;
+        bool hasLookRotationOffset = false;
+        if (faceTargetAfterTeleport)
+        {
+            Vector3 lookPoint = transform.position;
+            Vector3 flatDirectionOriginal = lookPoint - originalPosition;
+            flatDirectionOriginal.y = 0f;
+            if (flatDirectionOriginal.sqrMagnitude > 0.0001f)
+            {
+                Quaternion baseRotOriginal = Quaternion.LookRotation(flatDirectionOriginal.normalized, Vector3.up);
+                lookRotationOffset = Quaternion.Inverse(baseRotOriginal) * originalRotation;
+                hasLookRotationOffset = true;
+            }
+        }
+
+        Transform scaleTarget = ResolveScaleLockRoot(resolvedPlayer, resolvedAnimator);
+        Vector3 originalScale = scaleTarget != null ? scaleTarget.localScale : Vector3.one;
+        float originalScaleXSign = GetNonZeroSign(originalScale.x);
+
         CharacterController characterController = resolvedPlayer.GetComponent<CharacterController>();
         bool characterControllerWasEnabled = characterController != null && characterController.enabled;
 
@@ -135,7 +170,7 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
             flatDirection.y = 0f;
             if (flatDirection.sqrMagnitude > 0.0001f)
             {
-                resolvedPlayer.rotation = Quaternion.LookRotation(flatDirection.normalized, Vector3.up);
+                resolvedPlayer.rotation = BuildFacingRotation(flatDirection.normalized, hasLookRotationOffset, lookRotationOffset);
             }
         }
 
@@ -155,10 +190,20 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
             Debug.LogWarning("Player2AttackTeleportOnAITurn: No Animator found or trigger empty; using fallback wait.", this);
         }
 
-        yield return WaitForAttackToFinish(resolvedAnimator, preTriggerStateHash);
+        yield return WaitForAttackToFinish(
+            resolvedAnimator,
+            preTriggerStateHash,
+            preserveLocalScaleXSignDuringAttack,
+            scaleTarget,
+            originalScaleXSign);
 
         resolvedPlayer.position = originalPosition;
         resolvedPlayer.rotation = originalRotation;
+
+        if (scaleTarget != null)
+        {
+            scaleTarget.localScale = originalScale;
+        }
 
         if (rb != null)
         {
@@ -206,7 +251,12 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
         return resolvedPlayer.GetComponentInChildren<Animator>();
     }
 
-    private IEnumerator WaitForAttackToFinish(Animator animator, int preTriggerStateHash)
+    private IEnumerator WaitForAttackToFinish(
+        Animator animator,
+        int preTriggerStateHash,
+        bool applyScaleLock,
+        Transform scaleLockTarget,
+        float lockedScaleXSign)
     {
         if (animator == null)
         {
@@ -221,6 +271,11 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
 
             while (enterElapsed < enterTimeout)
             {
+                if (applyScaleLock)
+                {
+                    ApplyScaleXSign(scaleLockTarget, lockedScaleXSign);
+                }
+
                 AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
                 if (state.IsName(attackStateName))
                 {
@@ -239,6 +294,11 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
 
                 while (finishElapsed < finishTimeout)
                 {
+                    if (applyScaleLock)
+                    {
+                        ApplyScaleXSign(scaleLockTarget, lockedScaleXSign);
+                    }
+
                     AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
                     if (!current.IsName(attackStateName))
                     {
@@ -265,6 +325,11 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
 
         while (detectElapsed < detectTimeout)
         {
+            if (applyScaleLock)
+            {
+                ApplyScaleXSign(scaleLockTarget, lockedScaleXSign);
+            }
+
             if (animator.IsInTransition(0))
             {
                 AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
@@ -297,6 +362,11 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
 
         while (finishElapsedAuto < finishTimeoutAuto)
         {
+            if (applyScaleLock)
+            {
+                ApplyScaleXSign(scaleLockTarget, lockedScaleXSign);
+            }
+
             if (animator.IsInTransition(0))
             {
                 AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
@@ -327,5 +397,50 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
         }
 
         yield return new WaitForSeconds(Mathf.Max(0.01f, fallbackDurationSeconds));
+    }
+
+    private Quaternion BuildFacingRotation(Vector3 normalizedFlatDirection, bool hasDynamicOffset, Quaternion dynamicOffset)
+    {
+        Quaternion baseRot = Quaternion.LookRotation(normalizedFlatDirection, Vector3.up);
+
+        if (hasDynamicOffset)
+        {
+            return baseRot * dynamicOffset;
+        }
+
+        if (useProjectForwardAxisOffset)
+        {
+            baseRot *= Quaternion.Euler(0f, lookYawOffsetDegrees, 0f);
+        }
+
+        return baseRot;
+    }
+
+    private Transform ResolveScaleLockRoot(Transform resolvedPlayer, Animator resolvedAnimator)
+    {
+        if (scaleLockRoot != null) return scaleLockRoot;
+        if (resolvedAnimator != null) return resolvedAnimator.transform;
+        return resolvedPlayer;
+    }
+
+    private static float GetNonZeroSign(float value)
+    {
+        if (Mathf.Abs(value) < 0.0001f) return 1f;
+        return Mathf.Sign(value);
+    }
+
+    private static void ApplyScaleXSign(Transform target, float sign)
+    {
+        if (target == null) return;
+
+        Vector3 scale = target.localScale;
+        float absX = Mathf.Abs(scale.x);
+        if (absX < 0.0001f)
+        {
+            absX = 1f;
+        }
+
+        scale.x = absX * sign;
+        target.localScale = scale;
     }
 }
