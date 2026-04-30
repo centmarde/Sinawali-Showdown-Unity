@@ -42,6 +42,9 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
     [SerializeField] private float fallbackDurationSeconds = 0.8f;
 
     [Header("Behavior")]
+    [Tooltip("If true, listens to HandManager.OnCardConfirmed and triggers automatically when an Attack card is confirmed. If ArrowKeyAttackQTE is present, auto triggering is suppressed.")]
+    [SerializeField] private bool autoTriggerOnAttackCardConfirm = true;
+
     [Tooltip("If true, rotates the player to face this object after teleporting.")]
     [SerializeField] private bool faceTargetAfterTeleport = true;
 
@@ -53,9 +56,15 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
 
     private bool _isBusy;
     private Coroutine _sequenceRoutine;
+    private bool _requestedFireAttackAnimation = true;
 
     private void OnEnable()
     {
+        if (!autoTriggerOnAttackCardConfirm)
+        {
+            return;
+        }
+
         if (handManager == null)
         {
             handManager = FindObjectOfType<HandManager>();
@@ -93,6 +102,12 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
         if (card == null) return;
         if (card.Type != CardType.Attack) return;
 
+        // If a QTE resolver is active, let it decide when to trigger this attack.
+        if (FindObjectOfType<ArrowKeyAttackQTE>() != null)
+        {
+            return;
+        }
+
         if (ignoreWhileBusy && _isBusy) return;
 
         if (_sequenceRoutine != null)
@@ -100,12 +115,28 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
             StopCoroutine(_sequenceRoutine);
         }
 
-        _sequenceRoutine = StartCoroutine(AttackTeleportSequence());
+        _sequenceRoutine = StartCoroutine(AttackTeleportSequence(true));
     }
 
-    private IEnumerator AttackTeleportSequence()
+    /// <summary>
+    /// Triggers the teleport attack sequence manually (e.g., after a QTE completes).
+    /// </summary>
+    public void TriggerAttackTeleport(bool fireAttackAnimation = true)
+    {
+        if (ignoreWhileBusy && _isBusy) return;
+
+        if (_sequenceRoutine != null)
+        {
+            StopCoroutine(_sequenceRoutine);
+        }
+
+        _sequenceRoutine = StartCoroutine(AttackTeleportSequence(fireAttackAnimation));
+    }
+
+    private IEnumerator AttackTeleportSequence(bool fireAttackAnimation)
     {
         _isBusy = true;
+        _requestedFireAttackAnimation = fireAttackAnimation;
 
         Transform resolvedPlayer = ResolvePlayerRoot();
         if (resolvedPlayer == null)
@@ -175,10 +206,14 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
         }
 
         // Trigger the attack animation.
-        if (resolvedAnimator != null && !string.IsNullOrWhiteSpace(attackTriggerName))
+        if (_requestedFireAttackAnimation && resolvedAnimator != null && !string.IsNullOrWhiteSpace(attackTriggerName))
         {
             resolvedAnimator.ResetTrigger(attackTriggerName);
             resolvedAnimator.SetTrigger(attackTriggerName);
+        }
+        else if (!_requestedFireAttackAnimation && logDebug)
+        {
+            Debug.Log("AttackTeleportOnAttackCardConfirm: Attack animation suppressed (waiting handled elsewhere).", this);
         }
         else if (logDebug)
         {

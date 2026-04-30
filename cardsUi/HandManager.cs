@@ -26,6 +26,10 @@ public class HandManager : MonoBehaviour
     
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
+
+    [Header("Attack Resolution (QTE)")]
+    [Tooltip("If enabled and an ArrowKeyAttackQTE is active in the scene, Attack card damage is deferred to that system (damage is not applied immediately on confirm).")]
+    [SerializeField] private bool deferAttackDamageWhenQTEPresent = true;
     
     [Header("Card Management")]
     [SerializeField] private List<CardFetcher> allCardFetchers = new List<CardFetcher>();
@@ -105,9 +109,19 @@ public class HandManager : MonoBehaviour
         // Deal damage to Player2
         if (player2 != null)
         {
-            if (card.Damage > 0)
+            bool isAttackCard = card.Type == CardType.Attack;
+            bool shouldDeferAttackDamage = deferAttackDamageWhenQTEPresent && isAttackCard && FindObjectOfType<ArrowKeyAttackQTE>() != null;
+
+            if (!shouldDeferAttackDamage)
             {
-                player2.TakeDamage(card.Damage);
+                if (card.Damage > 0)
+                {
+                    player2.TakeDamage(card.Damage);
+                }
+            }
+            else if (showDebugInfo)
+            {
+                Debug.Log("HandManager: Attack card damage deferred to ArrowKeyAttackQTE.");
             }
         }
         else if (showDebugInfo)

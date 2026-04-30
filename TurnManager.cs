@@ -34,6 +34,10 @@ public class TurnManager : MonoBehaviour
 
     [Header("AI Turn Timing")]
     [SerializeField] private float player2SelectionDelaySeconds = 5f;
+
+    [Header("Player1 Attack (QTE)")]
+    [Tooltip("If enabled and an ArrowKeyAttackQTE is active in the scene, Player1 attack cards will not immediately advance the turn. The QTE system is expected to call AdvanceTurnAfterExternalResolution().")]
+    [SerializeField] private bool deferPlayer1AttackTurnAdvanceWhenQTEPresent = true;
     
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
@@ -147,12 +151,39 @@ public class TurnManager : MonoBehaviour
         if (card == null) return;
         if (card.Type != CardType.Attack) return;
 
+        if (deferPlayer1AttackTurnAdvanceWhenQTEPresent && FindObjectOfType<ArrowKeyAttackQTE>() != null)
+        {
+            if (showDebugInfo)
+            {
+                Debug.Log("[TurnManager] Player1 attack confirmed, but turn advance deferred to ArrowKeyAttackQTE.");
+            }
+            return;
+        }
+
         if (showDebugInfo)
         {
             Debug.Log($"[TurnManager] Player1 confirmed attack card: {card.Title}");
         }
 
         // Advance to Player2's turn
+        AdvanceTurn();
+    }
+
+    /// <summary>
+    /// Allows external systems (e.g., ArrowKeyAttackQTE) to advance the turn after they finish resolving Player1's attack.
+    /// Safe to call only when it is currently Player1's turn.
+    /// </summary>
+    public void AdvanceTurnAfterExternalResolution()
+    {
+        if (currentOwner != TurnOwner.Player1)
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning($"[TurnManager] AdvanceTurnAfterExternalResolution called while currentOwner is {currentOwner}; ignoring.");
+            }
+            return;
+        }
+
         AdvanceTurn();
     }
 

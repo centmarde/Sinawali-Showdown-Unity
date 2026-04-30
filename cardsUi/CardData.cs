@@ -39,6 +39,9 @@ public class CardData : ScriptableObject
     [Header("Advanced Properties (Optional)")]
     [SerializeField] private Rarity rarity = Rarity.Common;
     [SerializeField] private bool isLegendary = false;
+
+    [Header("Difficulty (QTE)")]
+    [SerializeField] private CardDifficulty difficulty = CardDifficulty.VeryEasy;
     
     [Header("Obtainment Status")]
     [SerializeField] private bool isObtained = true; // Default true for existing cards
@@ -58,6 +61,7 @@ public class CardData : ScriptableObject
     public Rarity Rarity => rarity;
     public bool IsLegendary => isLegendary;
     public bool IsObtained => isObtained;
+    public CardDifficulty Difficulty => difficulty;
 
     /// <summary>
     /// Validates the card data and returns any issues
@@ -267,6 +271,20 @@ public enum Rarity
     Epic,
     Legendary,
     Mythic
+}
+
+/// <summary>
+/// Controls the difficulty of any timing/QTE mechanics tied to the card.
+/// Defaults to VeryEasy for existing card assets.
+/// </summary>
+[Serializable]
+public enum CardDifficulty
+{
+    VeryEasy,
+    Easy,
+    Medium,
+    Hard,
+    VeryHard
 }
 
 // Note: CharacterClass enum removed - now using dynamic character type system
