@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
+using System;
 
 /// <summary>
 /// Player2-only teleport + attack sequence triggered by TurnManager during AI turn.
@@ -8,6 +9,9 @@ using UnityEngine.AI;
 /// </summary>
 public class Player2AttackTeleportOnAITurn : MonoBehaviour
 {
+    public event Action<Transform> OnTeleportAttackStarted;
+    public event Action<Transform> OnTeleportAttackEnded;
+
     [Header("Player2")]
     [Tooltip("Optional. If empty, resolves Player2 from GameManager.")]
     [SerializeField] private Transform player2Root;
@@ -143,6 +147,8 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
         Rigidbody rb = resolvedPlayer.GetComponent<Rigidbody>();
         bool rbWasKinematic = rb != null && rb.isKinematic;
 
+        OnTeleportAttackStarted?.Invoke(resolvedPlayer);
+
         if (navMeshAgent != null && navMeshAgentWasEnabled)
         {
             navMeshAgent.isStopped = true;
@@ -223,6 +229,8 @@ public class Player2AttackTeleportOnAITurn : MonoBehaviour
                 navMeshAgent.isStopped = false;
             }
         }
+
+        OnTeleportAttackEnded?.Invoke(resolvedPlayer);
 
         isBusy = false;
         sequenceRoutine = null;

@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
+using System;
 
 /// <summary>
 /// Attach this to a target object (e.g., the enemy). When an Attack card is confirmed,
@@ -9,6 +10,9 @@ using UnityEngine.AI;
 /// </summary>
 public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
 {
+    public event Action<Transform> OnTeleportAttackStarted;
+    public event Action<Transform> OnTeleportAttackEnded;
+
     [Header("Event Source")]
     [Tooltip("Optional. If empty, the script will FindObjectOfType<HandManager>() on enable.")]
     [SerializeField] private HandManager handManager;
@@ -130,6 +134,8 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
         Rigidbody rigidbody = resolvedPlayer.GetComponent<Rigidbody>();
         bool rigidbodyWasKinematic = rigidbody != null && rigidbody.isKinematic;
 
+        OnTeleportAttackStarted?.Invoke(resolvedPlayer);
+
         if (navMeshAgent != null && navMeshAgentWasEnabled)
         {
             navMeshAgent.isStopped = true;
@@ -185,6 +191,8 @@ public class AttackTeleportOnAttackCardConfirm : MonoBehaviour
         // Return player.
         resolvedPlayer.position = originalPosition;
         resolvedPlayer.rotation = originalRotation;
+
+        OnTeleportAttackEnded?.Invoke(resolvedPlayer);
 
         // Restore movement/physics.
         if (rigidbody != null)
