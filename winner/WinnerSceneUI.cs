@@ -87,6 +87,7 @@ public class WinnerSceneUI : MonoBehaviour
     private void HandleReplayClicked()
     {
         WinnerState.Clear();
+        ResetGraveyardIfPossible();
         if (!string.IsNullOrEmpty(gameplaySceneName))
         {
             SceneManager.LoadScene(gameplaySceneName);
@@ -96,9 +97,20 @@ public class WinnerSceneUI : MonoBehaviour
     private void HandleMainMenuClicked()
     {
         WinnerState.Clear();
+        ResetGraveyardIfPossible();
         if (!string.IsNullOrEmpty(mainMenuSceneName))
         {
             SceneManager.LoadScene(mainMenuSceneName);
         }
+    }
+
+    private static void ResetGraveyardIfPossible()
+    {
+        if (GameManager.Instance == null)
+        {
+            return;
+        }
+
+        GameManager.Instance.ClearGraveyard();
     }
 }

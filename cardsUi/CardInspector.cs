@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections;
 using System.Linq;
@@ -100,6 +101,29 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
     void Start()
     {
         Initialize();
+    }
+
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ResetSharedInspectorState();
+    }
+
+    private static void ResetSharedInspectorState()
+    {
+        sharedInspectorPanel = null;
+        currentlySelectedCard = null;
+        sharedPanelButtonsWired = false;
     }
     
     /// <summary>
