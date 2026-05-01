@@ -76,6 +76,8 @@ public class ArrowKeyAttackQTE : MonoBehaviour
     [SerializeField] private TextMeshProUGUI hintText;
     [SerializeField] private TextMeshProUGUI timerText;
     [SerializeField] private TextMeshProUGUI resultText;
+    [SerializeField] private Image panelImage;
+    [SerializeField] private Outline panelOutline;
 
     [Header("Space Confirm Timing")]
     [Tooltip("Sweet spot center along the bar (0..1).")]
@@ -126,6 +128,30 @@ public class ArrowKeyAttackQTE : MonoBehaviour
     [SerializeField] private RectTransform timingMarkerRect;
     [SerializeField] private Image timingSweetSpotImage;
 
+    [Header("Per-Phase Indicators")]
+    [SerializeField] private bool showKeyIndicator = true;
+    [SerializeField] private bool showTimingIndicator = true;
+    [SerializeField] private Color keySuccessColor = new Color(0.2f, 1f, 0.2f, 1f);
+    [SerializeField] private Color keyFailColor = new Color(1f, 0.2f, 0.2f, 1f);
+    [SerializeField] private Color timingSuccessColor = new Color(0.2f, 1f, 0.2f, 0.5f);
+    [SerializeField] private Color timingFailColor = new Color(1f, 0.2f, 0.2f, 0.5f);
+
+    [Header("Card Result Effect")]
+    [SerializeField] private bool flashCardResult = true;
+    [SerializeField] private float resultFlashSeconds = 0.6f;
+    [SerializeField] private Color resultSuccessColor = new Color(0.2f, 1f, 0.2f, 1f);
+    [SerializeField] private Color resultPartialColor = new Color(1f, 0.9f, 0.2f, 1f);
+    [SerializeField] private Color resultFailColor = new Color(1f, 0.3f, 0.3f, 1f);
+
+    [Header("Panel Result Glow")]
+    [SerializeField] private bool flashPanelResult = true;
+    [SerializeField] private float panelGlowSeconds = 0.6f;
+    [SerializeField] private float panelGlowIntensity = 1.6f;
+    [SerializeField] private Vector2 panelGlowOutlineDistance = new Vector2(6f, 6f);
+
+    [Header("Result Display")]
+    [SerializeField] private float resultDisplaySeconds = 1.0f;
+
     [Header("Debug")]
     [SerializeField] private bool logDebug = false;
 
@@ -144,6 +170,10 @@ public class ArrowKeyAttackQTE : MonoBehaviour
     private float activeSweetSpotWidth;
     private float activeTimingBarCyclesPerSecond;
     private float activeTimingMissDamageMultiplier;
+    private CardInspector currentInspector;
+    private Coroutine panelGlowRoutine;
+    private Color originalSequenceColor = Color.white;
+    private Color originalSweetSpotColor = Color.white;
 
     /// <summary>
     /// Allows editor tools (or custom setup scripts) to wire UI references into this component.
@@ -156,6 +186,15 @@ public class ArrowKeyAttackQTE : MonoBehaviour
         hintText = hint;
         timerText = timer;
         resultText = result;
+    }
+
+    public void SetPanelReference(Image panel)
+    {
+        panelImage = panel;
+        if (panelImage != null)
+        {
+            panelOutline = panelImage.GetComponent<Outline>();
+        }
     }
 
     /// <summary>
@@ -221,6 +260,7 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             return;
         }
 
+        currentInspector = inspector;
         StartQTE(card);
     }
 
@@ -259,6 +299,9 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             resultText.text = string.Empty;
         }
 
+        CacheOriginalIndicatorColors();
+        ResetIndicators();
+
         UpdateSequenceUI();
         UpdateTimerUI();
         RefreshSweetSpotVisual();
@@ -293,18 +336,21 @@ public class ArrowKeyAttackQTE : MonoBehaviour
         missed = 0;
         timeRemaining = 0f;
         currentCard = null;
+        currentInspector = null;
         phase = QTEPhase.EnterArrows;
         timingElapsed = 0f;
         timingMarkerT = 0f;
         activeSweetSpotWidth = 0.2f;
         activeTimingBarCyclesPerSecond = 1.2f;
         activeTimingMissDamageMultiplier = 0.2f;
+        ResetIndicators();
     }
 
     private IEnumerator QTERoutine()
     {
         bool confirmed = false;
         bool timingFailed = false;
+        bool spacePressed = false;
 
         while (timeRemaining > 0f)
         {
@@ -337,6 +383,7 @@ public class ArrowKeyAttackQTE : MonoBehaviour
                         hintText.text = "Press SPACE inside the sweet spot.";
                     }
 
+                    ApplyKeyIndicator(missed == 0);
                     SetTimingMeterVisible(true);
                     RefreshSweetSpotVisual();
                 }
@@ -349,6 +396,8 @@ public class ArrowKeyAttackQTE : MonoBehaviour
                     bool inSweetSpot = IsMarkerInSweetSpot();
                     confirmed = inSweetSpot;
                     timingFailed = !inSweetSpot;
+                    spacePressed = true;
+                    ApplyTimingIndicator(inSweetSpot);
                     break;
                 }
             }
@@ -364,11 +413,24 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             missed += remaining;
         }
 
+        if (index < (sequence != null ? sequence.Count : 0))
+        {
+            ApplyKeyIndicator(false);
+        }
+
+        if (phase == QTEPhase.ConfirmTiming && !spacePressed)
+        {
+            ApplyTimingIndicator(false);
+        }
+
         // If the player missed the Space timing window, treat the whole sequence as failed.
         int total = sequence != null ? sequence.Count : 0;
         int baseDamage = currentCard != null ? currentCard.Damage : 0;
         int missedClamped = Mathf.Clamp(missed, 0, total);
         int finalDamage = CalculateDamageAfterDeduction(baseDamage, missedClamped, total);
+
+        bool arrowsPerfect = missedClamped == 0 && index >= total && total > 0;
+        bool timingSuccess = confirmed && !timingFailed;
 
         // If the player missed the timing bar, still apply damage but with a massive deduction.
         if (timingFailed)
@@ -407,11 +469,160 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             Debug.Log($"ArrowKeyAttackQTE: Complete. Missed {missedClamped}/{total}. Damage {finalDamage}/{baseDamage}.");
         }
 
-        // Briefly show result, then hide.
-        yield return new WaitForSecondsRealtime(1.0f);
+        Color resultColor = GetResultColor(arrowsPerfect, timingSuccess);
+        ApplyResultCardEffect(resultColor);
+
+        if (spacePressed)
+        {
+            float displaySeconds = Mathf.Max(resultDisplaySeconds, Mathf.Max(resultFlashSeconds, panelGlowSeconds));
+            if (displaySeconds > 0f)
+            {
+                // Briefly show result, then hide.
+                yield return new WaitForSecondsRealtime(displaySeconds);
+            }
+        }
         SetUIVisible(false);
 
         StopQTE();
+    }
+
+    private Color GetResultColor(bool arrowsPerfect, bool timingSuccess)
+    {
+        if (arrowsPerfect && timingSuccess)
+        {
+            return resultSuccessColor;
+        }
+        if (!arrowsPerfect && !timingSuccess)
+        {
+            return resultFailColor;
+        }
+        return resultPartialColor;
+    }
+
+    private void ApplyResultCardEffect(Color color)
+    {
+        if (!flashCardResult || currentInspector == null)
+        {
+            return;
+        }
+
+        currentInspector.FlashResultColor(color, resultFlashSeconds);
+    }
+
+    private void ApplyResultPanelEffect(Color color)
+    {
+        if (!flashPanelResult)
+        {
+            return;
+        }
+
+        ResolvePanelReferences();
+        if (panelImage == null)
+        {
+            return;
+        }
+
+        if (panelGlowRoutine != null)
+        {
+            StopCoroutine(panelGlowRoutine);
+        }
+
+        panelGlowRoutine = StartCoroutine(PanelGlowRoutine(color));
+    }
+
+    private IEnumerator PanelGlowRoutine(Color color)
+    {
+        Color originalBg = panelImage != null ? panelImage.color : Color.white;
+        bool originalOutlineEnabled = panelOutline != null && panelOutline.enabled;
+        Color originalOutlineColor = panelOutline != null ? panelOutline.effectColor : Color.white;
+        Vector2 originalOutlineDistance = panelOutline != null ? panelOutline.effectDistance : Vector2.zero;
+
+        if (panelImage != null)
+        {
+            Color flashed = color * panelGlowIntensity;
+            flashed.a = originalBg.a;
+            panelImage.color = flashed;
+        }
+
+        if (panelOutline == null && panelImage != null)
+        {
+            panelOutline = panelImage.gameObject.AddComponent<Outline>();
+        }
+
+        if (panelOutline != null)
+        {
+            panelOutline.effectColor = color;
+            panelOutline.effectDistance = panelGlowOutlineDistance;
+            panelOutline.enabled = true;
+        }
+
+        float duration = panelGlowSeconds > 0f ? panelGlowSeconds : 0.6f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (panelImage != null)
+        {
+            panelImage.color = originalBg;
+        }
+
+        if (panelOutline != null)
+        {
+            panelOutline.effectColor = originalOutlineColor;
+            panelOutline.effectDistance = originalOutlineDistance;
+            panelOutline.enabled = originalOutlineEnabled;
+        }
+
+        panelGlowRoutine = null;
+    }
+
+    private void CacheOriginalIndicatorColors()
+    {
+        if (sequenceText != null)
+        {
+            originalSequenceColor = sequenceText.color;
+        }
+
+        if (timingSweetSpotImage != null)
+        {
+            originalSweetSpotColor = timingSweetSpotImage.color;
+        }
+    }
+
+    private void ResetIndicators()
+    {
+        if (sequenceText != null)
+        {
+            sequenceText.color = originalSequenceColor;
+        }
+
+        if (timingSweetSpotImage != null)
+        {
+            timingSweetSpotImage.color = originalSweetSpotColor;
+        }
+    }
+
+    private void ApplyKeyIndicator(bool success)
+    {
+        if (!showKeyIndicator || sequenceText == null)
+        {
+            return;
+        }
+
+        sequenceText.color = success ? keySuccessColor : keyFailColor;
+    }
+
+    private void ApplyTimingIndicator(bool success)
+    {
+        if (!showTimingIndicator || timingSweetSpotImage == null)
+        {
+            return;
+        }
+
+        timingSweetSpotImage.color = success ? timingSuccessColor : timingFailColor;
     }
 
     private IEnumerator ResolveAttackThenAdvanceTurn(int finalDamage)
@@ -654,8 +865,9 @@ public class ArrowKeyAttackQTE : MonoBehaviour
         // Background panel
         GameObject panelObj = new GameObject("Panel");
         panelObj.transform.SetParent(canvasObj.transform, false);
-        Image panelImage = panelObj.AddComponent<Image>();
-        panelImage.color = new Color(0f, 0f, 0f, 0.6f);
+        Image panelImageComponent = panelObj.AddComponent<Image>();
+        panelImageComponent.color = new Color(0f, 0f, 0f, 0.6f);
+        panelImage = panelImageComponent;
 
         RectTransform panelRect = panelObj.GetComponent<RectTransform>();
         panelRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -673,6 +885,8 @@ public class ArrowKeyAttackQTE : MonoBehaviour
 
         timerText = CreateTMP(panelObj.transform, "Timer", new Vector2(0f, -95f), 20f, TextAlignmentOptions.Center);
         resultText = CreateTMP(panelObj.transform, "Result", new Vector2(0f, -125f), 20f, TextAlignmentOptions.Center);
+
+        ResolvePanelReferences();
 
         if (logDebug)
         {
@@ -706,6 +920,41 @@ public class ArrowKeyAttackQTE : MonoBehaviour
         if (uiCanvas != null)
         {
             uiCanvas.enabled = visible;
+        }
+    }
+
+    private void ResolvePanelReferences()
+    {
+        if (panelImage != null)
+        {
+            if (panelOutline == null)
+            {
+                panelOutline = panelImage.GetComponent<Outline>();
+            }
+            return;
+        }
+
+        if (uiCanvas == null)
+        {
+            return;
+        }
+
+        Image[] images = uiCanvas.GetComponentsInChildren<Image>(true);
+        Image found = null;
+        for (int i = 0; i < images.Length; i++)
+        {
+            string nameLower = images[i].name.ToLower();
+            if (nameLower == "panel" || nameLower.Contains("panel"))
+            {
+                found = images[i];
+                break;
+            }
+        }
+
+        panelImage = found;
+        if (panelImage != null && panelOutline == null)
+        {
+            panelOutline = panelImage.GetComponent<Outline>();
         }
     }
 

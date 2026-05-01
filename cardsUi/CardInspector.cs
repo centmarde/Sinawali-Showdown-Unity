@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
+using System.Collections;
 using System.Linq;
 
 #if UNITY_EDITOR
@@ -24,6 +25,10 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
     [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 2f;
     [SerializeField] private float animationDuration = 0.3f;
+
+    [Header("Result Flash")]
+    [SerializeField] private float resultFlashDuration = 0.6f;
+    [SerializeField] private float resultFlashIntensity = 2f;
     
     [Header("References")]
     [SerializeField] private CardFetcher cardFetcher;
@@ -53,6 +58,7 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
     private Color originalBackgroundColor;
     private Vector3 originalScale;
     private HandManager handManager;
+    private Coroutine resultFlashRoutine;
     
     // Static inspector management to prevent conflicts
     private static GameObject sharedInspectorPanel;
@@ -950,6 +956,72 @@ public class CardInspector : MonoBehaviour, IPointerClickHandler
     public bool IsHighlighted()
     {
         return isHighlighted;
+    }
+
+    /// <summary>
+    /// Flash a temporary result color on the card.
+    /// </summary>
+    public void FlashResultColor(Color color, float durationSeconds)
+    {
+        if (cardBackground == null && cardOutline == null)
+        {
+            return;
+        }
+
+        if (resultFlashRoutine != null)
+        {
+            StopCoroutine(resultFlashRoutine);
+        }
+
+        resultFlashRoutine = StartCoroutine(ResultFlashRoutine(color, durationSeconds));
+    }
+
+    private IEnumerator ResultFlashRoutine(Color color, float durationSeconds)
+    {
+        float duration = durationSeconds > 0f ? durationSeconds : resultFlashDuration;
+
+        Color originalBg = cardBackground != null ? cardBackground.color : Color.white;
+        bool originalOutlineEnabled = cardOutline != null && cardOutline.enabled;
+        Color originalOutlineColor = cardOutline != null ? cardOutline.effectColor : Color.white;
+
+        if (cardBackground != null)
+        {
+            Color flashed = color * resultFlashIntensity;
+            flashed.a = originalBg.a;
+            cardBackground.color = flashed;
+        }
+
+        if (cardOutline != null)
+        {
+            cardOutline.effectColor = color;
+            cardOutline.enabled = true;
+        }
+        else
+        {
+            cardOutline = gameObject.AddComponent<Outline>();
+            cardOutline.effectColor = color;
+            cardOutline.effectDistance = new Vector2(2, 2);
+        }
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (cardBackground != null)
+        {
+            cardBackground.color = originalBg;
+        }
+
+        if (cardOutline != null)
+        {
+            cardOutline.effectColor = originalOutlineColor;
+            cardOutline.enabled = originalOutlineEnabled;
+        }
+
+        resultFlashRoutine = null;
     }
 
 #if UNITY_EDITOR

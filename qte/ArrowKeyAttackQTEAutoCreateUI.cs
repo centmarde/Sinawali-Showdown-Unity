@@ -63,6 +63,7 @@ public static class ArrowKeyAttackQTEAutoCreateUI
         TextMeshProUGUI result = CreateTMP(panelObj.transform, "Result", new Vector2(0f, -125f), 20f, TextAlignmentOptions.Center);
 
         qte.SetUIReferences(canvas, title, sequence, hint, timer, result);
+        qte.SetPanelReference(panelImage);
         qte.SetTimingUIReferences(timingBar, timingMarker, sweetSpot);
 
         // Auto-wire optional integrations if available

@@ -30,11 +30,36 @@ public class HPTrackerBinder : MonoBehaviour
     [Tooltip("If true and UI fields are empty, tries to find CharacterUIAutoCreate instances in the scene.")]
     public bool autoFindUIs = true;
 
+    [Header("Winner")]
+    [SerializeField] private bool declareWinnerOnZeroHP = true;
+    [SerializeField] private string winnerSceneName = "WinnerScene";
+
     [SerializeField, Tooltip("Resolved Character component for Player1 (read-only).")]
     private Character player1Character;
 
     [SerializeField, Tooltip("Resolved Character component for Player2 (read-only).")]
     private Character player2Character;
+
+    private bool winnerTriggered;
+
+    public Character GetPlayer1Character()
+    {
+        return player1Character;
+    }
+
+    public Character GetPlayer2Character()
+    {
+        return player2Character;
+    }
+
+    public void ConfigureWinnerScene(string sceneName, bool enableWinner)
+    {
+        declareWinnerOnZeroHP = enableWinner;
+        if (!string.IsNullOrEmpty(sceneName))
+        {
+            winnerSceneName = sceneName;
+        }
+    }
 
     private void OnEnable()
     {
@@ -43,6 +68,7 @@ public class HPTrackerBinder : MonoBehaviour
 
     private void OnDisable()
     {
+        UnbindWinnerEvents();
         // Cleanly detach to avoid dangling event subscriptions inside CharacterUIAutoCreate
         if (player1UI != null) player1UI.SetTrackedCharacter(null);
         if (player2UI != null) player2UI.SetTrackedCharacter(null);
@@ -63,6 +89,7 @@ public class HPTrackerBinder : MonoBehaviour
         ResolveCharacters();
         ResolveUIsIfNeeded();
         BindUIs();
+        BindWinnerEvents();
     }
 
     public void SetPlayer1(GameObject playerObject)
@@ -79,6 +106,7 @@ public class HPTrackerBinder : MonoBehaviour
 
     private void ResolveCharacters()
     {
+        UnbindWinnerEvents();
         player1Character = ResolveCharacterFromObject(player1Object);
         player2Character = ResolveCharacterFromObject(player2Object);
     }
@@ -183,5 +211,97 @@ public class HPTrackerBinder : MonoBehaviour
                 player2UI.SetTrackedCharacter(null);
             }
         }
+    }
+
+    private void BindWinnerEvents()
+    {
+        if (!declareWinnerOnZeroHP)
+        {
+            return;
+        }
+
+        if (player1Character != null)
+        {
+            player1Character.OnHPChanged -= OnPlayer1HPChanged;
+            player1Character.OnHPChanged += OnPlayer1HPChanged;
+            player1Character.OnCharacterDied -= OnPlayer1Died;
+            player1Character.OnCharacterDied += OnPlayer1Died;
+        }
+
+        if (player2Character != null)
+        {
+            player2Character.OnHPChanged -= OnPlayer2HPChanged;
+            player2Character.OnHPChanged += OnPlayer2HPChanged;
+            player2Character.OnCharacterDied -= OnPlayer2Died;
+            player2Character.OnCharacterDied += OnPlayer2Died;
+        }
+    }
+
+    private void UnbindWinnerEvents()
+    {
+        if (player1Character != null)
+        {
+            player1Character.OnHPChanged -= OnPlayer1HPChanged;
+            player1Character.OnCharacterDied -= OnPlayer1Died;
+        }
+
+        if (player2Character != null)
+        {
+            player2Character.OnHPChanged -= OnPlayer2HPChanged;
+            player2Character.OnCharacterDied -= OnPlayer2Died;
+        }
+    }
+
+    private void OnPlayer1HPChanged(int currentHP, int maxHP)
+    {
+        if (currentHP <= 0)
+        {
+            TriggerWinner(player2Character, "Player 2");
+        }
+    }
+
+    private void OnPlayer2HPChanged(int currentHP, int maxHP)
+    {
+        if (currentHP <= 0)
+        {
+            TriggerWinner(player1Character, "Player 1");
+        }
+    }
+
+    private void OnPlayer1Died()
+    {
+        TriggerWinner(player2Character, "Player 2");
+    }
+
+    private void OnPlayer2Died()
+    {
+        TriggerWinner(player1Character, "Player 1");
+    }
+
+    private void TriggerWinner(Character winner, string fallbackName)
+    {
+        if (winnerTriggered)
+        {
+            return;
+        }
+
+        winnerTriggered = true;
+
+        string winnerName = fallbackName;
+        if (winner != null)
+        {
+            winnerName = winner.GetCharacterName();
+        }
+
+        WinnerState.SetWinner(winnerName);
+        Time.timeScale = 1f;
+
+        if (string.IsNullOrEmpty(winnerSceneName))
+        {
+            Debug.LogWarning("HPTrackerBinder: Winner scene name is empty.", this);
+            return;
+        }
+
+        UnityEngine.SceneManagement.SceneManager.LoadScene(winnerSceneName);
     }
 }
