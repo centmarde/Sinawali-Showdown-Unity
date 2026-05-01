@@ -438,6 +438,13 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             finalDamage = Mathf.RoundToInt(finalDamage * Mathf.Clamp01(activeTimingMissDamageMultiplier));
         }
 
+        bool showResultUI = !spacePressed;
+        if (!showResultUI)
+        {
+            // Close immediately after Space is pressed.
+            SetUIVisible(false);
+        }
+
         // Resolve the attack: optionally play teleport/attack animation first, then apply damage.
         damageResolveRoutine = StartCoroutine(ResolveAttackThenAdvanceTurn(finalDamage));
 
@@ -445,7 +452,7 @@ public class ArrowKeyAttackQTE : MonoBehaviour
         yield return damageResolveRoutine;
         damageResolveRoutine = null;
 
-        if (resultText != null)
+        if (showResultUI && resultText != null)
         {
             if (total <= 0)
             {
@@ -469,15 +476,19 @@ public class ArrowKeyAttackQTE : MonoBehaviour
             Debug.Log($"ArrowKeyAttackQTE: Complete. Missed {missedClamped}/{total}. Damage {finalDamage}/{baseDamage}.");
         }
 
-        Color resultColor = GetResultColor(arrowsPerfect, timingSuccess);
-        ApplyResultCardEffect(resultColor);
+        if (showResultUI)
+        {
+            Color resultColor = GetResultColor(arrowsPerfect, timingSuccess);
+            ApplyResultCardEffect(resultColor);
+            ApplyResultPanelEffect(resultColor);
+        }
 
-        if (spacePressed)
+        if (showResultUI)
         {
             float displaySeconds = Mathf.Max(resultDisplaySeconds, Mathf.Max(resultFlashSeconds, panelGlowSeconds));
             if (displaySeconds > 0f)
             {
-                // Briefly show result, then hide.
+                // Briefly show result on timeout/auto-fail, then hide.
                 yield return new WaitForSecondsRealtime(displaySeconds);
             }
         }
