@@ -20,7 +20,7 @@ public class MainMenuAutoCreate : MonoBehaviour
     
     [Header("Menu Settings")]
     public string gameTitle = "My Awesome Game";
-    public string characterCreationSceneName = "characterCreation";
+    public string characterCreationSceneName = "CharacterCreation";
     public Color titleColor = Color.white;
     public Color buttonNormalColor = new Color(0.2f, 0.3f, 0.8f, 1f);
     public Color buttonHighlightColor = new Color(0.3f, 0.4f, 0.9f, 1f);
@@ -306,6 +306,7 @@ public class MainMenuAutoCreate : MonoBehaviour
     {
         if (startGameButton != null)
         {
+            
             startGameButton.onClick.RemoveAllListeners();
             startGameButton.onClick.AddListener(StartGame);
         }
@@ -334,21 +335,8 @@ public class MainMenuAutoCreate : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"Scene '{characterCreationSceneName}' not found in build settings! Please add it to File > Build Settings > Scenes In Build");
-            
-            // Try loading by index (assuming it's the next scene after main menu)
-            int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
-            int nextSceneIndex = currentSceneIndex + 1;
-            
-            if (nextSceneIndex < SceneManager.sceneCountInBuildSettings)
-            {
-                Debug.Log($"Attempting to load scene at index {nextSceneIndex}");
-                SceneManager.LoadScene(nextSceneIndex);
-            }
-            else
-            {
-                Debug.LogError("No scenes available to load! Please configure build settings.");
-            }
+            string expected = string.IsNullOrEmpty(characterCreationSceneName) ? "CharacterCreation" : characterCreationSceneName;
+            Debug.LogError($"Scene '{expected}' not found in build settings. Check the exact scene name (case-sensitive) and add it to File > Build Settings > Scenes In Build to keep the required flow: MainMenu -> CharacterCreation -> DeckBuilder.");
         }
     }
     
@@ -382,7 +370,7 @@ public class MainMenuAutoCreate : MonoBehaviour
         {
             string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
             string sceneNameFromPath = System.IO.Path.GetFileNameWithoutExtension(scenePath);
-            if (sceneNameFromPath == sceneName)
+            if (sceneNameFromPath.Equals(sceneName, System.StringComparison.OrdinalIgnoreCase))
                 return true;
         }
         return false;

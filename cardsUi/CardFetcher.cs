@@ -41,6 +41,7 @@ public class CardFetcher : MonoBehaviour
     
     [Header("Display Settings")]
     [SerializeField] private bool showDebugInfo = true;
+    [SerializeField] private bool applyTypeColors = true;
     [SerializeField] private Color attackCardColor = new Color(0.8f, 0.2f, 0.2f, 1f);
     [SerializeField] private Color buffCardColor = new Color(0.2f, 0.8f, 0.2f, 1f);
     [SerializeField] private Color healCardColor = new Color(0.8f, 0.8f, 0.2f, 1f);
@@ -51,6 +52,10 @@ public class CardFetcher : MonoBehaviour
     [SerializeField] private Sprite defaultCardSprite = null;
     [SerializeField] private bool loadFromUrlIfSpriteNull = true;
     [SerializeField] private float imageLoadTimeout = 5f;
+
+    [Header("Deck Constraints (Optional)")]
+    [Tooltip("Optional: Restrict random draws to this list (e.g., DeckManager selection). Leave empty to use all cards.")]
+    [SerializeField] private List<CardData> allowedCards = null;
     
     // Currently displayed card
     private CardData currentCard = null;
@@ -163,6 +168,7 @@ public class CardFetcher : MonoBehaviour
         }
         else
         {
+            ClearDisplayedCard();
             Debug.LogWarning($"CardFetcher: No cards found in Assets/CardData on {gameObject.name}");
         }
     }
@@ -203,6 +209,16 @@ public class CardFetcher : MonoBehaviour
         
         return allCards;
     }
+
+    List<CardData> GetCardPool()
+    {
+        if (allowedCards != null && allowedCards.Count > 0)
+        {
+            return allowedCards;
+        }
+
+        return GetAllCards();
+    }
     
 
     
@@ -211,7 +227,7 @@ public class CardFetcher : MonoBehaviour
     /// </summary>
     List<CardData> GetFilteredCards(string characterType = "Any")
     {
-        var allCards = GetAllCards();
+        var allCards = GetCardPool();
         
         // First filter by obtainment status (only include obtained cards)
         var obtainedCards = allCards.Where(card => card != null && card.IsObtained).ToList();
@@ -256,7 +272,7 @@ public class CardFetcher : MonoBehaviour
     /// </summary>
     List<CardData> GetFilteredCardsForCharacter(CharacterData character)
     {
-        var allCards = GetAllCards();
+        var allCards = GetCardPool();
         
         // First filter by obtainment status (only include obtained cards)
         var obtainedCards = allCards.Where(card => card != null && card.IsObtained).ToList();
@@ -327,7 +343,7 @@ public class CardFetcher : MonoBehaviour
         else
         {
             // Strict filtering: only return universal cards when no filter is set
-            var allCards = GetAllCards();
+            var allCards = GetCardPool();
             cards = allCards.Where(card => card != null && card.IsObtained && card.IsUniversalCard).ToList();
             filterDescription = "no character filter (universal cards only)";
         }
@@ -364,6 +380,8 @@ public class CardFetcher : MonoBehaviour
     void DisplayCard(CardData card)
     {
         if (card == null) return;
+
+        EnsureUIElements();
         
         // Store the current card
         currentCard = card;
@@ -390,18 +408,63 @@ public class CardFetcher : MonoBehaviour
             UpdateCardArtwork(card);
         }
         
-        // Update card colors based on type
-        Color cardColor = GetCardTypeColor(card.Type);
-        
-        if (cardBackground != null)
-            cardBackground.color = cardColor;
-            
-        if (cardBorder != null)
-            cardBorder.color = cardColor;
+        // Update card colors based on type (optional)
+        if (applyTypeColors)
+        {
+            Color cardColor = GetCardTypeColor(card.Type);
+
+            if (cardBackground != null)
+                cardBackground.color = cardColor;
+
+            if (cardBorder != null)
+                cardBorder.color = cardColor;
+        }
         
         if (showDebugInfo)
         {
             Debug.Log($"CardFetcher: Displayed random card '{card.Title}' on {gameObject.name}");
+        }
+    }
+
+    /// <summary>
+    /// Displays a specific card (non-random) using the same UI rendering pipeline.
+    /// </summary>
+    public void DisplaySpecificCard(CardData card)
+    {
+        if (card == null)
+        {
+            ClearDisplayedCard();
+            return;
+        }
+
+        DisplayCard(card);
+    }
+
+    /// <summary>
+    /// Clears the current card display and resets UI text/artwork.
+    /// </summary>
+    public void ClearDisplayedCard()
+    {
+        EnsureUIElements();
+        currentCard = null;
+
+        if (cardNameText != null) cardNameText.text = string.Empty;
+        if (cardTypeText != null) cardTypeText.text = string.Empty;
+        if (cardDescriptionText != null) cardDescriptionText.text = string.Empty;
+        if (damageText != null) damageText.text = string.Empty;
+        if (manaText != null) manaText.text = string.Empty;
+
+        if (cardArtwork != null)
+        {
+            cardArtwork.sprite = defaultCardSprite;
+        }
+
+        if (cardBackground != null) cardBackground.color = Color.white;
+        if (cardBorder != null) cardBorder.color = Color.white;
+
+        if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Cleared card display on {gameObject.name}");
         }
     }
     
@@ -542,6 +605,33 @@ public class CardFetcher : MonoBehaviour
     public CardData GetCurrentCard()
     {
         return currentCard;
+    }
+
+    /// <summary>
+    /// Restrict random draws to an allowed card list (e.g., selected deck).
+    /// </summary>
+    public void SetAllowedCards(IReadOnlyList<CardData> cards)
+    {
+        if (cards == null)
+        {
+            allowedCards = null;
+            return;
+        }
+
+        allowedCards = cards.Where(c => c != null).Distinct().ToList();
+
+        if (showDebugInfo)
+        {
+            Debug.Log($"CardFetcher: Allowed card pool set to {allowedCards.Count} cards on {gameObject.name}");
+        }
+    }
+
+    /// <summary>
+    /// Clears any allowed-card restriction, returning to full card pool.
+    /// </summary>
+    public void ClearAllowedCards()
+    {
+        allowedCards = null;
     }
     
     /// <summary>
@@ -730,6 +820,39 @@ public class CardFetcher : MonoBehaviour
     public void SetLoadFromUrl(bool loadFromUrl)
     {
         loadFromUrlIfSpriteNull = loadFromUrl;
+    }
+
+    /// <summary>
+    /// Enables or disables type-based color tinting on the card background/border.
+    /// </summary>
+    public void SetApplyTypeColors(bool applyColors)
+    {
+        applyTypeColors = applyColors;
+    }
+
+    /// <summary>
+    /// Controls whether this CardFetcher auto-fetches on Start.
+    /// </summary>
+    public void SetAutoFetchOnStart(bool autoFetch)
+    {
+        autoFetchOnStart = autoFetch;
+    }
+
+    void EnsureUIElements()
+    {
+        if (!autoFindUIElements)
+        {
+            return;
+        }
+
+        bool missing = cardNameText == null || cardTypeText == null || cardDescriptionText == null ||
+                       damageText == null || manaText == null || cardArtwork == null ||
+                       cardBackground == null || cardBorder == null;
+
+        if (missing)
+        {
+            AutoFindUIElements();
+        }
     }
     
     #if UNITY_EDITOR

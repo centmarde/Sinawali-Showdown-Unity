@@ -30,6 +30,7 @@ public class CharacterSelectionManager : MonoBehaviour
     [Header("Scene Settings")]
     public string mainSceneName = "MainScene";
     public string mainMenuSceneName = "MainMenu";
+    public string deckBuilderSceneName = "DeckBuilder";
     
     private List<CharacterData> availableCharacters = new List<CharacterData>();
     private List<CharacterSelectionCard> characterCards = new List<CharacterSelectionCard>();
@@ -513,19 +514,18 @@ public class CharacterSelectionManager : MonoBehaviour
         }
         
         Debug.Log($"Starting game with character: {selectedCharacter.characterName}");
-        
-        // Load main scene
-        if (SceneExists(mainSceneName))
+
+        // Redirect to deck builder scene first
+        if (SceneExists(deckBuilderSceneName))
         {
-            SceneManager.LoadScene(mainSceneName);
+            SceneManager.LoadScene(deckBuilderSceneName);
         }
         else
         {
-            Debug.LogWarning($"Main scene '{mainSceneName}' not found! Loading next scene in build settings.");
-            int nextSceneIndex = SceneManager.GetActiveScene().buildIndex + 1;
-            if (nextSceneIndex < SceneManager.sceneCountInBuildSettings)
+            Debug.LogWarning($"Deck builder scene '{deckBuilderSceneName}' not found! Loading main scene '{mainSceneName}'.");
+            if (SceneExists(mainSceneName))
             {
-                SceneManager.LoadScene(nextSceneIndex);
+                SceneManager.LoadScene(mainSceneName);
             }
         }
     }

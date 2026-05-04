@@ -23,6 +23,14 @@ public class HandManager : MonoBehaviour
     [SerializeField] private bool useCharacterTypeFilter = true;
     [SerializeField] private string characterTypeFilter = "Warrior";
     [SerializeField] private CharacterData specificCharacterFilter = null; // Optional: filter by specific character
+
+    [Header("Deck Limits")]
+    [Tooltip("Optional: reference to DeckManager for selected deck and deck size.")]
+    [SerializeField] private DeckManager deckManager;
+    [Tooltip("Fallback deck size limit when DeckManager is not present.")]
+    [SerializeField] private int deckSizeLimit = 6;
+    [Tooltip("If enabled, drawing new cards stops when (graveyard + hand) reaches the deck size.")]
+    [SerializeField] private bool stopDrawingWhenDeckExhausted = true;
     
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
@@ -49,6 +57,11 @@ public class HandManager : MonoBehaviour
         // Listen to CardInspector confirmations (CardInspector invokes HandManager.OnCardConfirmed)
         // so we can apply gameplay effects when a card is played.
         OnCardConfirmed += HandleCardConfirmed;
+
+        if (deckManager == null)
+        {
+            deckManager = FindObjectOfType<DeckManager>();
+        }
 
         if (autoSetupOnStart)
         {
@@ -179,6 +192,21 @@ public class HandManager : MonoBehaviour
         // Keep the same filtering rules the hand currently uses.
         // CardFetcher filter setters may auto-fetch, so we only fetch once.
         string currentFilterStatus = fetcher.GetCurrentFilterStatus();
+
+        if (deckManager != null && deckManager.HasSelectedDeck())
+        {
+            fetcher.SetAllowedCards(deckManager.GetSelectedCards());
+        }
+        else
+        {
+            fetcher.ClearAllowedCards();
+        }
+
+        if (stopDrawingWhenDeckExhausted && !CanDrawReplacement(fetcher))
+        {
+            fetcher.ClearDisplayedCard();
+            return;
+        }
 
         if (specificCharacterFilter != null)
         {
@@ -322,10 +350,27 @@ public class HandManager : MonoBehaviour
     /// </summary>
     public void FetchCardsForActiveHand()
     {
+        int remaining = GetRemainingDeckCount();
+
         foreach (CardFetcher fetcher in activeCardFetchers)
         {
             if (fetcher.enabled)
             {
+                if (deckManager != null && deckManager.HasSelectedDeck())
+                {
+                    fetcher.SetAllowedCards(deckManager.GetSelectedCards());
+                }
+                else
+                {
+                    fetcher.ClearAllowedCards();
+                }
+
+                if (stopDrawingWhenDeckExhausted && remaining <= 0)
+                {
+                    fetcher.ClearDisplayedCard();
+                    continue;
+                }
+
                 if (specificCharacterFilter != null)
                 {
                     fetcher.SetCharacterFilter(specificCharacterFilter);
@@ -339,6 +384,11 @@ public class HandManager : MonoBehaviour
                     fetcher.ClearCharacterFilters();
                 }
                 fetcher.FetchAndDisplayCard();
+
+                if (stopDrawingWhenDeckExhausted)
+                {
+                    remaining--;
+                }
             }
         }
         
@@ -384,6 +434,21 @@ public class HandManager : MonoBehaviour
                 
                 if (fetchCardsOnSetup)
                 {
+                    if (deckManager != null && deckManager.HasSelectedDeck())
+                    {
+                        fetcher.SetAllowedCards(deckManager.GetSelectedCards());
+                    }
+                    else
+                    {
+                        fetcher.ClearAllowedCards();
+                    }
+
+                    if (stopDrawingWhenDeckExhausted && GetRemainingDeckCount() <= 0)
+                    {
+                        fetcher.ClearDisplayedCard();
+                    }
+                    else
+                    {
                     if (specificCharacterFilter != null)
                     {
                         fetcher.SetCharacterFilter(specificCharacterFilter);
@@ -397,6 +462,7 @@ public class HandManager : MonoBehaviour
                         fetcher.ClearCharacterFilters();
                     }
                     fetcher.FetchAndDisplayCard();
+                    }
                 }
                 
                 OnActiveCardsChanged?.Invoke(activeCardFetchers.Count);
@@ -504,6 +570,75 @@ public class HandManager : MonoBehaviour
     public List<CardFetcher> GetAllCards()
     {
         return new List<CardFetcher>(allCardFetchers);
+    }
+
+    int GetDeckLimit()
+    {
+        if (deckManager != null)
+        {
+            return deckManager.GetDeckLimit();
+        }
+
+        return Mathf.Max(1, deckSizeLimit);
+    }
+
+    int GetGraveyardCount()
+    {
+        if (GameManager.Instance != null)
+        {
+            return GameManager.Instance.GetGraveyardCards().Count;
+        }
+
+        return 0;
+    }
+
+    int GetCurrentHandCardCount()
+    {
+        int count = 0;
+
+        for (int i = 0; i < activeCardFetchers.Count; i++)
+        {
+            CardFetcher fetcher = activeCardFetchers[i];
+            if (fetcher != null && fetcher.GetCurrentCard() != null)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    int GetRemainingDeckCount()
+    {
+        if (!stopDrawingWhenDeckExhausted)
+        {
+            return int.MaxValue;
+        }
+
+        int deckLimit = GetDeckLimit();
+        int graveyardCount = GetGraveyardCount();
+        int currentHandCount = GetCurrentHandCardCount();
+
+        return Mathf.Max(0, deckLimit - graveyardCount - currentHandCount);
+    }
+
+    bool CanDrawReplacement(CardFetcher fetcher)
+    {
+        if (!stopDrawingWhenDeckExhausted)
+        {
+            return true;
+        }
+
+        int deckLimit = GetDeckLimit();
+        int graveyardCount = GetGraveyardCount();
+        int currentHandCount = GetCurrentHandCardCount();
+
+        if (fetcher != null && fetcher.GetCurrentCard() != null)
+        {
+            currentHandCount = Mathf.Max(0, currentHandCount - 1);
+        }
+
+        return (deckLimit - graveyardCount - currentHandCount) > 0;
     }
     
     /// <summary>
