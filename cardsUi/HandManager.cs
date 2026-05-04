@@ -155,6 +155,9 @@ public class HandManager : MonoBehaviour
         // Discard/replace the played card in-hand by drawing a new one into the same UI slot.
         RefillPlayedCardSlot(inspector);
 
+        // If the hand is empty, reset the deck loop and re-deal a full hand.
+        CheckAndRefillWhenHandEmpty();
+
         if (showDebugInfo)
         {
             string p1Name = player1 != null ? player1.GetCharacterName() : "<none>";
@@ -242,6 +245,26 @@ public class HandManager : MonoBehaviour
             {
                 fetcher.ClearCharacterFilters(); // auto-fetches when changed
             }
+        }
+    }
+
+    void CheckAndRefillWhenHandEmpty()
+    {
+        if (GetCurrentHandCardCount() > 0)
+        {
+            return;
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ClearGraveyard();
+        }
+
+        FetchCardsForActiveHand();
+
+        if (showDebugInfo)
+        {
+            Debug.Log("HandManager: Hand was empty. Graveyard cleared and hand refilled.");
         }
     }
     
