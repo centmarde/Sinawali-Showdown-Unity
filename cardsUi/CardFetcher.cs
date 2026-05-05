@@ -456,7 +456,8 @@ public class CardFetcher : MonoBehaviour
 
         if (cardArtwork != null)
         {
-            cardArtwork.sprite = defaultCardSprite;
+            cardArtwork.sprite = null;
+            cardArtwork.color = new Color(1f, 1f, 1f, 0f);
         }
 
         if (cardBackground != null) cardBackground.color = Color.white;
@@ -479,6 +480,12 @@ public class CardFetcher : MonoBehaviour
             if (card.CardSprite != null)
             {
                 cardArtwork.sprite = card.CardSprite;
+                cardArtwork.color = Color.white;
+            }
+            else
+            {
+                cardArtwork.sprite = null;
+                cardArtwork.color = new Color(1f, 1f, 1f, 0f);
             }
             return;
         }
@@ -487,6 +494,7 @@ public class CardFetcher : MonoBehaviour
         if (card.CardSprite != null)
         {
             cardArtwork.sprite = card.CardSprite;
+            cardArtwork.color = Color.white; // Restore visibility when sprite is set
             if (showDebugInfo)
             {
                 Debug.Log($"CardFetcher: Using CardSprite for '{card.Title}' on {gameObject.name}");
@@ -509,6 +517,7 @@ public class CardFetcher : MonoBehaviour
         if (defaultCardSprite != null)
         {
             cardArtwork.sprite = defaultCardSprite;
+            cardArtwork.color = Color.white;
             if (showDebugInfo)
             {
                 Debug.Log($"CardFetcher: Using default sprite for '{card.Title}' on {gameObject.name}");
@@ -516,6 +525,8 @@ public class CardFetcher : MonoBehaviour
         }
         else
         {
+            cardArtwork.sprite = null;
+            cardArtwork.color = new Color(1f, 1f, 1f, 0f);
             if (showDebugInfo)
             {
                 Debug.LogWarning($"CardFetcher: No image available for '{card.Title}' on {gameObject.name} - no sprite, URL, or default sprite provided");
@@ -541,6 +552,7 @@ public class CardFetcher : MonoBehaviour
                 // Create sprite from downloaded texture
                 Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.one * 0.5f);
                 cardArtwork.sprite = sprite;
+                cardArtwork.color = Color.white;
                 
                 if (showDebugInfo)
                 {
@@ -574,10 +586,16 @@ public class CardFetcher : MonoBehaviour
         if (defaultCardSprite != null)
         {
             cardArtwork.sprite = defaultCardSprite;
+            cardArtwork.color = Color.white;
             if (showDebugInfo)
             {
                 Debug.Log($"CardFetcher: Applied default sprite as fallback for '{cardTitle}' on {gameObject.name}");
             }
+        }
+        else
+        {
+            cardArtwork.sprite = null;
+            cardArtwork.color = new Color(1f, 1f, 1f, 0f);
         }
     }
     

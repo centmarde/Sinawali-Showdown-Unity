@@ -14,6 +14,8 @@ public class DeckBuilderCardSlot : MonoBehaviour, IPointerClickHandler
 
     private CardData cardData;
     private DeckManager deckManager;
+    private DeckBuilderUI deckBuilderUI;
+    private bool openDialogOnClick;
 
     public CardData CardData => cardData;
 
@@ -32,9 +34,11 @@ public class DeckBuilderCardSlot : MonoBehaviour, IPointerClickHandler
         SetSelected(false);
     }
 
-    public void Setup(CardData card, DeckManager manager)
+    public void Setup(CardData card, DeckManager manager, DeckBuilderUI ui, bool useDialog)
     {
         deckManager = manager;
+        deckBuilderUI = ui;
+        openDialogOnClick = useDialog;
         cardData = card;
 
         if (cardFetcher != null)
@@ -78,6 +82,12 @@ public class DeckBuilderCardSlot : MonoBehaviour, IPointerClickHandler
     {
         if (deckManager == null || cardData == null)
         {
+            return;
+        }
+
+        if (openDialogOnClick && deckBuilderUI != null)
+        {
+            deckBuilderUI.ShowCardDialog(cardData);
             return;
         }
 

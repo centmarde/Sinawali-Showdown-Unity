@@ -17,6 +17,12 @@ public class DeckBuilderUI : MonoBehaviour
     [SerializeField] private Button confirmButton;
     [SerializeField] private Button clearButton;
 
+    [Header("Card Dialog")]
+    [SerializeField] private GameObject cardDialogRoot;
+    [SerializeField] private CardFetcher dialogCardFetcher;
+    [SerializeField] private Button dialogConfirmButton;
+    [SerializeField] private Button dialogCancelButton;
+
     [Header("Scene Flow")]
     [SerializeField] private bool loadSceneOnConfirm = true;
     [SerializeField] private string nextSceneName = "MainScene";
@@ -28,12 +34,18 @@ public class DeckBuilderUI : MonoBehaviour
     private DeckManager deckManager;
     private readonly List<DeckBuilderCardSlot> availableSlots = new List<DeckBuilderCardSlot>();
     private readonly List<DeckBuilderCardSlot> selectedSlots = new List<DeckBuilderCardSlot>();
+    private CardData pendingDialogCard;
 
     private void Awake()
     {
         if (cardSlotTemplate != null)
         {
             cardSlotTemplate.SetActive(false);
+        }
+
+        if (cardDialogRoot != null)
+        {
+            cardDialogRoot.SetActive(false);
         }
     }
 
@@ -91,6 +103,18 @@ public class DeckBuilderUI : MonoBehaviour
             clearButton.onClick.RemoveListener(HandleClearClicked);
             clearButton.onClick.AddListener(HandleClearClicked);
         }
+
+        if (dialogConfirmButton != null)
+        {
+            dialogConfirmButton.onClick.RemoveListener(HandleDialogConfirmClicked);
+            dialogConfirmButton.onClick.AddListener(HandleDialogConfirmClicked);
+        }
+
+        if (dialogCancelButton != null)
+        {
+            dialogCancelButton.onClick.RemoveListener(HandleDialogCancelClicked);
+            dialogCancelButton.onClick.AddListener(HandleDialogCancelClicked);
+        }
     }
 
     private void BuildAvailableCards()
@@ -135,7 +159,7 @@ public class DeckBuilderUI : MonoBehaviour
                 slot = slotObj.AddComponent<DeckBuilderCardSlot>();
             }
 
-            slot.Setup(card, deckManager);
+            slot.Setup(card, deckManager, this, true);
             availableSlots.Add(slot);
         }
 
@@ -218,13 +242,62 @@ public class DeckBuilderUI : MonoBehaviour
 
             if (i < selected.Count)
             {
-                slot.Setup(selected[i], deckManager);
+                slot.Setup(selected[i], deckManager, this, false);
             }
             else
             {
                 slot.Clear();
             }
         }
+    }
+
+    public void ShowCardDialog(CardData card)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        pendingDialogCard = card;
+
+        if (dialogCardFetcher != null)
+        {
+            dialogCardFetcher.SetAutoFetchOnStart(false);
+            dialogCardFetcher.SetApplyTypeColors(true);
+            dialogCardFetcher.DisplaySpecificCard(card);
+        }
+
+        if (cardDialogRoot != null)
+        {
+            cardDialogRoot.SetActive(true);
+        }
+    }
+
+    private void HideCardDialog()
+    {
+        if (cardDialogRoot != null)
+        {
+            cardDialogRoot.SetActive(false);
+        }
+
+        pendingDialogCard = null;
+    }
+
+    private void HandleDialogConfirmClicked()
+    {
+        if (deckManager == null || pendingDialogCard == null)
+        {
+            HideCardDialog();
+            return;
+        }
+
+        deckManager.AddCardToDeck(pendingDialogCard);
+        HideCardDialog();
+    }
+
+    private void HandleDialogCancelClicked()
+    {
+        HideCardDialog();
     }
 
     private void UpdateAvailableHighlights()
@@ -274,16 +347,24 @@ public class DeckBuilderUI : MonoBehaviour
     {
         if (availableCardsContent == null)
         {
-            ScrollRect availableScroll = FindByName<ScrollRect>("AvailableCardsScroll");
-            if (availableScroll != null)
+            RectTransform availableGrid = FindByName<RectTransform>("AvailableCardsGrid");
+            if (availableGrid != null)
             {
-                availableCardsContent = availableScroll.content;
-                if (availableCardsContent == null)
+                availableCardsContent = availableGrid;
+            }
+            else
+            {
+                ScrollRect availableScroll = FindByName<ScrollRect>("AvailableCardsScroll");
+                if (availableScroll != null)
                 {
-                    Transform contentTransform = availableScroll.transform.Find("Viewport/Content");
-                    if (contentTransform != null)
+                    availableCardsContent = availableScroll.content;
+                    if (availableCardsContent == null)
                     {
-                        availableCardsContent = contentTransform.GetComponent<RectTransform>();
+                        Transform contentTransform = availableScroll.transform.Find("Viewport/Content");
+                        if (contentTransform != null)
+                        {
+                            availableCardsContent = contentTransform.GetComponent<RectTransform>();
+                        }
                     }
                 }
             }
@@ -316,6 +397,34 @@ public class DeckBuilderUI : MonoBehaviour
         if (clearButton == null)
         {
             clearButton = FindByName<Button>("ClearButton");
+        }
+
+        if (cardDialogRoot == null)
+        {
+            GameObject dialogRoot = FindByName<GameObject>("DeckBuilderDialog");
+            if (dialogRoot != null)
+            {
+                cardDialogRoot = dialogRoot;
+            }
+        }
+
+        if (dialogCardFetcher == null)
+        {
+            CardFetcher fetcher = FindByName<CardFetcher>("DialogCardDisplay");
+            if (fetcher != null)
+            {
+                dialogCardFetcher = fetcher;
+            }
+        }
+
+        if (dialogConfirmButton == null)
+        {
+            dialogConfirmButton = FindByName<Button>("DialogConfirmButton");
+        }
+
+        if (dialogCancelButton == null)
+        {
+            dialogCancelButton = FindByName<Button>("DialogCancelButton");
         }
 
         if (showDebugInfo)

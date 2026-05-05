@@ -34,7 +34,7 @@ public static class DeckBuilderAutoCreateUI
         // Left panel (available cards)
         GameObject availablePanel = CreateVerticalPanel(root.transform, "AvailableCardsPanel", 2f);
         TextMeshProUGUI availableTitle = CreateTitle(availablePanel.transform, "Available Cards");
-        ScrollRect availableScroll = CreateScrollView(availablePanel.transform, "AvailableCardsScroll", out RectTransform availableContent);
+        CreateAvailableGrid(availablePanel.transform, out RectTransform availableContent);
 
         // Right panel (selected deck)
         GameObject selectedPanel = CreateVerticalPanel(root.transform, "SelectedDeckPanel", 1f);
@@ -45,6 +45,9 @@ public static class DeckBuilderAutoCreateUI
         GameObject buttonBar = CreateButtonBar(selectedPanel.transform);
         Button confirmButton = CreateButton(buttonBar.transform, "ConfirmButton", "Confirm");
         Button clearButton = CreateButton(buttonBar.transform, "ClearButton", "Clear");
+
+        GameObject dialogRoot = CreateCardDialog(canvas.transform, out CardFetcher dialogCardFetcher, out Button dialogConfirmButton, out Button dialogCancelButton);
+        dialogRoot.SetActive(false);
 
         // Card slot template (hidden)
         GameObject cardSlotTemplate = CreateCardSlotTemplate(availableContent);
@@ -57,6 +60,10 @@ public static class DeckBuilderAutoCreateUI
         so.FindProperty("deckCountText").objectReferenceValue = deckCountText;
         so.FindProperty("confirmButton").objectReferenceValue = confirmButton;
         so.FindProperty("clearButton").objectReferenceValue = clearButton;
+        so.FindProperty("cardDialogRoot").objectReferenceValue = dialogRoot;
+        so.FindProperty("dialogCardFetcher").objectReferenceValue = dialogCardFetcher;
+        so.FindProperty("dialogConfirmButton").objectReferenceValue = dialogConfirmButton;
+        so.FindProperty("dialogCancelButton").objectReferenceValue = dialogCancelButton;
         so.FindProperty("loadSceneOnConfirm").boolValue = true;
         so.FindProperty("nextSceneName").stringValue = "MainScene";
         so.ApplyModifiedPropertiesWithoutUndo();
@@ -82,6 +89,24 @@ public static class DeckBuilderAutoCreateUI
         TextMeshProUGUI deckCountText = FindByName<TextMeshProUGUI>("Subtitle");
         Button confirmButton = FindByName<Button>("ConfirmButton");
         Button clearButton = FindByName<Button>("ClearButton");
+        GameObject dialogRoot = FindByName<GameObject>("DeckBuilderDialog");
+        CardFetcher dialogCardFetcher = FindByName<CardFetcher>("DialogCardDisplay");
+        Button dialogConfirmButton = FindByName<Button>("DialogConfirmButton");
+        Button dialogCancelButton = FindByName<Button>("DialogCancelButton");
+
+        if (dialogRoot == null)
+        {
+            Canvas canvas = FindByName<Canvas>("DeckBuilderCanvas");
+            if (canvas != null)
+            {
+                dialogRoot = CreateCardDialog(canvas.transform, out dialogCardFetcher, out dialogConfirmButton, out dialogCancelButton);
+                dialogRoot.SetActive(false);
+            }
+        }
+        else
+        {
+            ApplyDialogLayout(dialogRoot);
+        }
 
         if (cardSlotTemplate == null && availableContent != null)
         {
@@ -113,6 +138,22 @@ public static class DeckBuilderAutoCreateUI
         if (clearButton != null)
         {
             so.FindProperty("clearButton").objectReferenceValue = clearButton;
+        }
+        if (dialogRoot != null)
+        {
+            so.FindProperty("cardDialogRoot").objectReferenceValue = dialogRoot;
+        }
+        if (dialogCardFetcher != null)
+        {
+            so.FindProperty("dialogCardFetcher").objectReferenceValue = dialogCardFetcher;
+        }
+        if (dialogConfirmButton != null)
+        {
+            so.FindProperty("dialogConfirmButton").objectReferenceValue = dialogConfirmButton;
+        }
+        if (dialogCancelButton != null)
+        {
+            so.FindProperty("dialogCancelButton").objectReferenceValue = dialogCancelButton;
         }
         so.FindProperty("loadSceneOnConfirm").boolValue = true;
         if (string.IsNullOrEmpty(so.FindProperty("nextSceneName").stringValue))
@@ -164,6 +205,12 @@ public static class DeckBuilderAutoCreateUI
 
     private static RectTransform FindAvailableContent()
     {
+        RectTransform availableGrid = FindByName<RectTransform>("AvailableCardsGrid");
+        if (availableGrid != null)
+        {
+            return availableGrid;
+        }
+
         ScrollRect scroll = FindByName<ScrollRect>("AvailableCardsScroll");
         if (scroll != null && scroll.content != null)
         {
@@ -264,6 +311,35 @@ public static class DeckBuilderAutoCreateUI
         le.flexibleHeight = 1f;
 
         return panel;
+    }
+
+    private static GameObject CreateAvailableGrid(Transform parent, out RectTransform content)
+    {
+        GameObject container = CreateUIObject("AvailableCardsGrid", parent);
+        if (container == null)
+        {
+            Debug.LogError("DeckBuilderAutoCreateUI: Failed to create AvailableCardsGrid.");
+            content = null;
+            return null;
+        }
+
+        Image img = container.AddComponent<Image>();
+        img.color = new Color(0.1f, 0.1f, 0.14f, 0.9f);
+
+        content = container.GetComponent<RectTransform>();
+        content.sizeDelta = new Vector2(760, 660);
+
+        GridLayoutGroup grid = container.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(170, 240);
+        grid.spacing = new Vector2(10, 10);
+        grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        grid.childAlignment = TextAnchor.UpperCenter;
+        grid.padding = new RectOffset(8, 8, 8, 8);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 4;
+
+        return container;
     }
 
     private static TextMeshProUGUI CreateTitle(Transform parent, string text)
@@ -438,6 +514,59 @@ public static class DeckBuilderAutoCreateUI
         return bar;
     }
 
+    private static GameObject CreateCardDialog(Transform parent, out CardFetcher dialogFetcher, out Button confirmButton, out Button cancelButton)
+    {
+        GameObject dialogRoot = CreateUIObject("DeckBuilderDialog", parent);
+        dialogFetcher = null;
+        confirmButton = null;
+        cancelButton = null;
+
+        if (dialogRoot == null)
+        {
+            return null;
+        }
+
+        RectTransform rootRect = dialogRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        Image rootImage = dialogRoot.AddComponent<Image>();
+        rootImage.color = new Color(0f, 0f, 0f, 0.6f);
+
+        GameObject panel = CreateUIObject("DialogPanel", dialogRoot.transform);
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.sizeDelta = new Vector2(640, 780);
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.anchoredPosition = Vector2.zero;
+
+        Image panelImage = panel.AddComponent<Image>();
+        panelImage.color = new Color(0.12f, 0.12f, 0.18f, 0.98f);
+
+        VerticalLayoutGroup panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+        panelLayout.spacing = 14;
+        panelLayout.padding = new RectOffset(20, 20, 20, 20);
+        panelLayout.childAlignment = TextAnchor.UpperCenter;
+        panelLayout.childForceExpandHeight = false;
+        panelLayout.childForceExpandWidth = true;
+
+        CreateTitle(panel.transform, "Card Details");
+
+        GameObject cardDisplay = CreateDialogCardDisplay(panel.transform);
+        dialogFetcher = cardDisplay != null ? cardDisplay.GetComponent<CardFetcher>() : null;
+
+        GameObject dialogButtons = CreateButtonBar(panel.transform);
+        if (dialogButtons != null)
+        {
+            confirmButton = CreateButton(dialogButtons.transform, "DialogConfirmButton", "Confirm");
+            cancelButton = CreateButton(dialogButtons.transform, "DialogCancelButton", "Cancel");
+        }
+
+        return dialogRoot;
+    }
+
     private static Button CreateButton(Transform parent, string name, string label)
     {
         GameObject obj = CreateUIObject(name, parent);
@@ -493,9 +622,6 @@ public static class DeckBuilderAutoCreateUI
         slot.AddComponent<CardFetcher>();
         slot.AddComponent<DeckBuilderCardSlot>();
 
-        GameObject border = CreateImageChild(slot.transform, "Border", new Vector2(0, 0), new Vector2(1, 1));
-        border.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
-
         GameObject artwork = CreateImageChild(slot.transform, "Artwork", new Vector2(0, 0.5f), new Vector2(1, 1));
         Image artImage = artwork.GetComponent<Image>();
         artImage.color = Color.white;
@@ -521,6 +647,61 @@ public static class DeckBuilderAutoCreateUI
         CreateTMPChild(textContainer.transform, "CardDescriptionText", "Description", 12f, TextAlignmentOptions.TopLeft);
         CreateTMPChild(textContainer.transform, "DamageText", "DMG", 12f, TextAlignmentOptions.Left);
         CreateTMPChild(textContainer.transform, "ManaText", "MP", 12f, TextAlignmentOptions.Left);
+
+        return slot;
+    }
+
+    private static GameObject CreateDialogCardDisplay(Transform parent)
+    {
+        GameObject slot = CreateUIObject("DialogCardDisplay", parent);
+        if (slot == null)
+        {
+            return null;
+        }
+
+        Image bg = slot.AddComponent<Image>();
+        bg.color = new Color(0.05f, 0.05f, 0.08f, 0.8f);
+
+        LayoutElement le = slot.AddComponent<LayoutElement>();
+        le.preferredHeight = 540;
+        le.preferredWidth = 480;
+
+        slot.AddComponent<CardFetcher>();
+
+        GameObject artwork = CreateImageChild(slot.transform, "Artwork", new Vector2(0, 0.45f), new Vector2(1, 1));
+        Image artImage = artwork.GetComponent<Image>();
+        artImage.color = Color.white;
+        artImage.preserveAspect = true;
+        RectTransform artRect = artwork.GetComponent<RectTransform>();
+        artRect.offsetMin = new Vector2(12, 12);
+        artRect.offsetMax = new Vector2(-12, -12);
+
+        GameObject textContainer = CreateUIObject("TextContainer", slot.transform);
+        RectTransform textRect = textContainer.GetComponent<RectTransform>();
+        textRect.anchorMin = new Vector2(0, 0);
+        textRect.anchorMax = new Vector2(1, 0.45f);
+        textRect.offsetMin = new Vector2(12, 12);
+        textRect.offsetMax = new Vector2(-12, -12);
+
+        VerticalLayoutGroup textLayout = textContainer.AddComponent<VerticalLayoutGroup>();
+        textLayout.spacing = 4;
+        textLayout.childAlignment = TextAnchor.UpperCenter;
+        textLayout.childControlWidth = true;
+        textLayout.childControlHeight = true;
+        textLayout.childForceExpandWidth = true;
+        textLayout.childForceExpandHeight = false;
+
+        TextMeshProUGUI name = CreateTMPChild(textContainer.transform, "CardNameText", "Card Name", 22f, TextAlignmentOptions.Center);
+        TextMeshProUGUI type = CreateTMPChild(textContainer.transform, "CardTypeText", "Type", 18f, TextAlignmentOptions.Center);
+        TextMeshProUGUI desc = CreateTMPChild(textContainer.transform, "CardDescriptionText", "Description", 16f, TextAlignmentOptions.TopLeft);
+        TextMeshProUGUI dmg = CreateTMPChild(textContainer.transform, "DamageText", "DMG", 16f, TextAlignmentOptions.Left);
+        TextMeshProUGUI mana = CreateTMPChild(textContainer.transform, "ManaText", "MP", 16f, TextAlignmentOptions.Left);
+
+        SetDialogTextSizing(name, 30, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(type, 24, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(desc, 120, 360, true, TextOverflowModes.Ellipsis);
+        SetDialogTextSizing(dmg, 24, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(mana, 24, 360, false, TextOverflowModes.Truncate);
 
         return slot;
     }
@@ -570,6 +751,94 @@ public static class DeckBuilderAutoCreateUI
         layout.preferredHeight = isDescription ? 80 : 24;
 
         return tmp;
+    }
+
+    private static void SetDialogTextSizing(TextMeshProUGUI tmp, float height, float preferredWidth, bool wrap, TextOverflowModes overflow)
+    {
+        if (tmp == null)
+        {
+            return;
+        }
+
+        RectTransform rect = tmp.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0, 1);
+        rect.anchorMax = new Vector2(1, 1);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.sizeDelta = new Vector2(0, height);
+
+        LayoutElement layout = tmp.GetComponent<LayoutElement>();
+        if (layout != null)
+        {
+            layout.minWidth = preferredWidth;
+            layout.preferredWidth = preferredWidth;
+            layout.minHeight = height;
+            layout.preferredHeight = height;
+            layout.flexibleWidth = 1f;
+            layout.flexibleHeight = 0f;
+        }
+
+        tmp.enableWordWrapping = wrap;
+        tmp.overflowMode = overflow;
+    }
+
+    private static void ApplyDialogLayout(GameObject dialogRoot)
+    {
+        if (dialogRoot == null)
+        {
+            return;
+        }
+
+        RectTransform panelRect = FindChildByName<RectTransform>(dialogRoot.transform, "DialogPanel");
+        if (panelRect != null)
+        {
+            panelRect.sizeDelta = new Vector2(640, 780);
+        }
+
+        VerticalLayoutGroup panelLayout = FindChildByName<VerticalLayoutGroup>(dialogRoot.transform, "DialogPanel");
+        if (panelLayout != null)
+        {
+            panelLayout.spacing = 14;
+            panelLayout.padding = new RectOffset(20, 20, 20, 20);
+        }
+
+        LayoutElement displayLayout = FindChildByName<LayoutElement>(dialogRoot.transform, "DialogCardDisplay");
+        if (displayLayout != null)
+        {
+            displayLayout.preferredHeight = 540;
+            displayLayout.preferredWidth = 480;
+        }
+
+        TextMeshProUGUI name = FindChildByName<TextMeshProUGUI>(dialogRoot.transform, "CardNameText");
+        TextMeshProUGUI type = FindChildByName<TextMeshProUGUI>(dialogRoot.transform, "CardTypeText");
+        TextMeshProUGUI desc = FindChildByName<TextMeshProUGUI>(dialogRoot.transform, "CardDescriptionText");
+        TextMeshProUGUI dmg = FindChildByName<TextMeshProUGUI>(dialogRoot.transform, "DamageText");
+        TextMeshProUGUI mana = FindChildByName<TextMeshProUGUI>(dialogRoot.transform, "ManaText");
+
+        SetDialogTextSizing(name, 30, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(type, 24, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(desc, 120, 360, true, TextOverflowModes.Ellipsis);
+        SetDialogTextSizing(dmg, 24, 360, false, TextOverflowModes.Truncate);
+        SetDialogTextSizing(mana, 24, 360, false, TextOverflowModes.Truncate);
+    }
+
+    private static T FindChildByName<T>(Transform root, string childName) where T : Component
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        Transform[] children = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length; i++)
+        {
+            Transform child = children[i];
+            if (child != null && child.name == childName)
+            {
+                return child.GetComponent<T>();
+            }
+        }
+
+        return null;
     }
 
     private static void EnsureEventSystem()
