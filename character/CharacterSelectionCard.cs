@@ -4,6 +4,12 @@ using UnityEngine.EventSystems;
 
 public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
+    /// <summary>
+    /// The larger portrait size used for character selection cards.
+    /// Both the portrait and the card dimensions are based on this size.
+    /// </summary>
+    private static readonly Vector2 LargerPortraitSize = new Vector2(240f, 360f);
+    
     [Header("UI Elements")]
     [SerializeField] private Image cardBackground;
     [SerializeField] private Image characterPortrait;
@@ -13,8 +19,8 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
     [SerializeField] private CharacterData characterData;
     
     [Header("Card Settings")]
-    [SerializeField] private float cardWidth = 200f;
-    [SerializeField] private float cardHeight = 280f;
+    [SerializeField] private float cardWidth = LargerPortraitSize.x;
+    [SerializeField] private float cardHeight = LargerPortraitSize.y;
     
     private CharacterSelectionManager selectionManager;
     private Color normalColor;
@@ -106,7 +112,7 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(180f, 240f); // Larger portrait size
+        rect.sizeDelta = LargerPortraitSize;
         rect.anchoredPosition = new Vector2(0, 15f);
         
         Image portraitImage = portraitObj.AddComponent<Image>();
@@ -122,6 +128,7 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
     
     /// <summary>
     /// Auto-creates the selection border Image component as a fallback.
+    /// The border size matches the LargerPortraitSize to ensure consistent dimensions.
     /// </summary>
     private Image CreateSelectionBorder()
     {
@@ -129,10 +136,11 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
         borderObj.transform.SetParent(transform);
         
         RectTransform rect = borderObj.AddComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = new Vector2(-5, -5);
-        rect.offsetMax = new Vector2(5, 5);
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(260f, 400f); // Match LargerPortraitSize for consistent border size
+        rect.anchoredPosition = new Vector2(0f, 10f);
         
         Image borderImage = borderObj.AddComponent<Image>();
         // Set initial color - will be updated by UpdateVisualState
