@@ -472,7 +472,7 @@ public class CharacterUIAutoCreate : MonoBehaviour
         
         nameText.text = trackedCharacter.GetCharacterName();
         
-        if (trackedCharacter.characterData.characterPortrait != null)
+        if (characterPortrait != null && trackedCharacter.characterData.characterPortrait != null)
         {
             characterPortrait.sprite = trackedCharacter.characterData.characterPortrait;
             characterPortrait.color = Color.white;
