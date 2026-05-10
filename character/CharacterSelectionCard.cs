@@ -1,19 +1,20 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
-using TMPro;
 
 public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
     [Header("UI Elements")]
-    public Image cardBackground;
-    public Image characterPortrait;
-    public TextMeshProUGUI characterNameText;
-    public TextMeshProUGUI characterStatsText;
-    public Image selectionBorder;
+    [SerializeField] private Image cardBackground;
+    [SerializeField] private Image characterPortrait;
+    [SerializeField] private Image selectionBorder;
     
     [Header("Card Data")]
-    public CharacterData characterData;
+    [SerializeField] private CharacterData characterData;
+    
+    [Header("Card Settings")]
+    [SerializeField] private float cardWidth = 200f;
+    [SerializeField] private float cardHeight = 280f;
     
     private CharacterSelectionManager selectionManager;
     private Color normalColor;
@@ -21,6 +22,154 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
     private Color selectedColor;
     private bool isSelected = false;
     private bool isHovered = false;
+    
+    /// <summary>
+    /// Creates and initializes the card UI. Prefers manual inspector attachment,
+    /// but will auto-create missing UI elements as a fallback.
+    /// </summary>
+    /// <returns>True if UI was successfully created or initialized.</returns>
+    [ContextMenu("Create Card UI")]
+    public bool CreateCardUI()
+    {
+        bool usedAutoCreate = false;
+        
+        // Auto-create missing UI elements as fallback
+        if (cardBackground == null)
+        {
+            cardBackground = CreateCardBackground();
+            usedAutoCreate = true;
+        }
+        
+        if (characterPortrait == null)
+        {
+            characterPortrait = CreateCharacterPortrait();
+            usedAutoCreate = true;
+        }
+        
+        if (selectionBorder == null)
+        {
+            selectionBorder = CreateSelectionBorder();
+            usedAutoCreate = true;
+        }
+        
+        // Initialize card UI
+        InitializeCardUI();
+        
+        if (usedAutoCreate)
+        {
+            Debug.Log($"CreateCardUI: Auto-created missing UI elements on {gameObject.name}. " +
+                     "For better control, consider manually assigning UI elements in the inspector.");
+        }
+        else
+        {
+            Debug.Log($"CreateCardUI: Card UI successfully initialized using inspector references on {gameObject.name}");
+        }
+        
+        return true;
+    }
+    
+    /// <summary>
+    /// Auto-creates the card background Image component as a fallback.
+    /// </summary>
+    private Image CreateCardBackground()
+    {
+        GameObject backgroundObj = new GameObject("Card Background");
+        backgroundObj.transform.SetParent(transform);
+        
+        RectTransform rect = backgroundObj.AddComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        
+        Image bgImage = backgroundObj.AddComponent<Image>();
+        bgImage.color = new Color(normalColor.r, normalColor.g, normalColor.b, 1f); // Ensure full opacity
+        bgImage.raycastTarget = true;
+        
+        // Add rounded corners effect using a simple border
+        Outline bgOutline = backgroundObj.AddComponent<Outline>();
+        bgOutline.effectColor = new Color(0.3f, 0.3f, 0.4f, 0.8f);
+        bgOutline.effectDistance = new Vector2(1, 1);
+        
+        return bgImage;
+    }
+    
+    /// <summary>
+    /// Auto-creates the character portrait Image component as a fallback.
+    /// </summary>
+    private Image CreateCharacterPortrait()
+    {
+        GameObject portraitObj = new GameObject("Character Portrait");
+        portraitObj.transform.SetParent(transform);
+        
+        RectTransform rect = portraitObj.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(180f, 240f); // Larger portrait size
+        rect.anchoredPosition = new Vector2(0, 15f);
+        
+        Image portraitImage = portraitObj.AddComponent<Image>();
+        portraitImage.color = Color.white;
+        
+        // Add a subtle border
+        Outline portraitOutline = portraitObj.AddComponent<Outline>();
+        portraitOutline.effectColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+        portraitOutline.effectDistance = new Vector2(2, 2);
+        
+        return portraitImage;
+    }
+    
+    /// <summary>
+    /// Auto-creates the selection border Image component as a fallback.
+    /// </summary>
+    private Image CreateSelectionBorder()
+    {
+        GameObject borderObj = new GameObject("Selection Border");
+        borderObj.transform.SetParent(transform);
+        
+        RectTransform rect = borderObj.AddComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(-5, -5);
+        rect.offsetMax = new Vector2(5, 5);
+        
+        Image borderImage = borderObj.AddComponent<Image>();
+        // Set initial color - will be updated by UpdateVisualState
+        borderImage.color = new Color(selectedColor.r, selectedColor.g, selectedColor.b, 0f);
+        borderImage.raycastTarget = false;
+        
+        return borderImage;
+    }
+    
+    /// <summary>
+    /// Initializes the card UI elements with proper colors and settings.
+    /// Called by CreateCardUI() after validation passes.
+    /// </summary>
+    private void InitializeCardUI()
+    {
+        // Set up RectTransform for card sizing
+        RectTransform rectTransform = GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = gameObject.AddComponent<RectTransform>();
+        }
+        rectTransform.sizeDelta = new Vector2(cardWidth, cardHeight);
+        
+        // Initialize card background color
+        if (cardBackground != null)
+        {
+            cardBackground.color = normalColor;
+        }
+        
+        // Initialize selection border (hidden by default)
+        if (selectionBorder != null)
+        {
+            selectionBorder.color = Color.clear;
+        }
+        
+        UpdateCardDisplay();
+    }
     
     public void Setup(CharacterData character, CharacterSelectionManager manager, Color normal, Color hover, Color selected)
     {
@@ -30,112 +179,17 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
         hoverColor = hover;
         selectedColor = selected;
         
-        CreateCardUI();
-        UpdateCardDisplay();
-    }
-    
-    private void CreateCardUI()
-    {
-        // Card background
-        cardBackground = gameObject.AddComponent<Image>();
-        cardBackground.color = normalColor;
-        
-        // Add shadow effect
-        Shadow cardShadow = gameObject.AddComponent<Shadow>();
-        cardShadow.effectColor = new Color(0, 0, 0, 0.3f);
-        cardShadow.effectDistance = new Vector2(2, -2);
-        
-        // Card content container
-        GameObject contentContainer = new GameObject("Content Container");
-        contentContainer.transform.SetParent(transform);
-        
-        RectTransform contentRect = contentContainer.AddComponent<RectTransform>();
-        contentRect.anchorMin = Vector2.zero;
-        contentRect.anchorMax = Vector2.one;
-        contentRect.offsetMin = new Vector2(10, 10);
-        contentRect.offsetMax = new Vector2(-10, -10);
-        
-        VerticalLayoutGroup contentLayout = contentContainer.AddComponent<VerticalLayoutGroup>();
-        contentLayout.spacing = 8;
-        contentLayout.padding = new RectOffset(8, 8, 8, 8);
-        contentLayout.childAlignment = TextAnchor.UpperCenter;
-        contentLayout.childControlWidth = true;
-        contentLayout.childControlHeight = false;
-        contentLayout.childForceExpandWidth = true;
-        
-        // Character portrait
-        GameObject portraitContainer = new GameObject("Portrait Container");
-        portraitContainer.transform.SetParent(contentContainer.transform);
-        
-        RectTransform portraitRect = portraitContainer.AddComponent<RectTransform>();
-        portraitRect.sizeDelta = new Vector2(0, 120);
-        
-        characterPortrait = portraitContainer.AddComponent<Image>();
-        characterPortrait.color = Color.white;
-        
-        // Add portrait border
-        Outline portraitBorder = portraitContainer.AddComponent<Outline>();
-        portraitBorder.effectColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-        portraitBorder.effectDistance = new Vector2(1, 1);
-        
-        // Character name
-        GameObject nameContainer = new GameObject("Name Container");
-        nameContainer.transform.SetParent(contentContainer.transform);
-        
-        RectTransform nameRect = nameContainer.AddComponent<RectTransform>();
-        nameRect.sizeDelta = new Vector2(0, 30);
-        
-        characterNameText = nameContainer.AddComponent<TextMeshProUGUI>();
-        characterNameText.fontSize = 16;
-        characterNameText.fontStyle = FontStyles.Bold;
-        characterNameText.color = Color.white;
-        characterNameText.alignment = TextAlignmentOptions.Center;
-        characterNameText.enableWordWrapping = false;
-        characterNameText.overflowMode = TextOverflowModes.Overflow;
-        
-        // Character stats
-        GameObject statsContainer = new GameObject("Stats Container");
-        statsContainer.transform.SetParent(contentContainer.transform);
-        
-        RectTransform statsRect = statsContainer.AddComponent<RectTransform>();
-        statsRect.sizeDelta = new Vector2(0, 80);
-        
-        characterStatsText = statsContainer.AddComponent<TextMeshProUGUI>();
-        characterStatsText.fontSize = 12;
-        characterStatsText.color = new Color(0.9f, 0.9f, 0.9f, 1f);
-        characterStatsText.alignment = TextAlignmentOptions.Center;
-        characterStatsText.enableWordWrapping = true;
-        
-        // Selection border (initially invisible)
-        GameObject borderContainer = new GameObject("Selection Border");
-        borderContainer.transform.SetParent(transform);
-        
-        RectTransform borderRect = borderContainer.AddComponent<RectTransform>();
-        borderRect.anchorMin = Vector2.zero;
-        borderRect.anchorMax = Vector2.one;
-        borderRect.offsetMin = Vector2.zero;
-        borderRect.offsetMax = Vector2.zero;
-        
-        selectionBorder = borderContainer.AddComponent<Image>();
-        selectionBorder.color = Color.clear;
-        
-        Outline selectionOutline = borderContainer.AddComponent<Outline>();
-        selectionOutline.effectColor = selectedColor;
-        selectionOutline.effectDistance = new Vector2(3, 3);
-        
-        // Make sure border is behind content
-        borderContainer.transform.SetSiblingIndex(0);
+        // Use CreateCardUI which validates inspector references
+        if (!CreateCardUI())
+        {
+            Debug.LogWarning($"CharacterSelectionCard.Setup: Card UI not properly configured on {gameObject.name}");
+            return;
+        }
     }
     
     private void UpdateCardDisplay()
     {
         if (characterData == null) return;
-        
-        // Update character name
-        if (characterNameText != null)
-        {
-            characterNameText.text = characterData.characterName;
-        }
         
         // Update character portrait
         if (characterPortrait != null)
@@ -151,15 +205,6 @@ public class CharacterSelectionCard : MonoBehaviour, IPointerEnterHandler, IPoin
                 characterPortrait.sprite = null;
                 characterPortrait.color = GetCharacterColor(characterData.characterName);
             }
-        }
-        
-        // Update character stats
-        if (characterStatsText != null)
-        {
-            characterStatsText.text = $"HP: {characterData.maxHP}\n" +
-                                    $"MP: {characterData.maxMana}\n" +
-                                    $"Gold: {characterData.gold}\n" +
-                                    $"Effects: {characterData.buffs.Count + characterData.debuffs.Count}";
         }
     }
     
