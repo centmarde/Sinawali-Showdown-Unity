@@ -321,9 +321,9 @@ public class CharacterSelectionManager : MonoBehaviour
         
         if (allCharacters.Length == 0)
         {
-            // Fallback: Try loading from Assets/CharacterData using AssetDatabase (Editor only)
+            // Fallback: Try loading from Assets/Resources/CharacterData using AssetDatabase (Editor only)
             #if UNITY_EDITOR
-            string[] guids = AssetDatabase.FindAssets("t:CharacterData", new[] { "Assets/CharacterData" });
+            string[] guids = AssetDatabase.FindAssets("t:CharacterData", new[] { "Assets/Resources/CharacterData" });
             foreach (string guid in guids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -602,7 +602,7 @@ public class CharacterSelectionManagerEditor : Editor
         }
         
         EditorGUILayout.Space();
-        EditorGUILayout.HelpBox("Make sure CharacterData assets are in a Resources/CharacterData folder or Assets/CharacterData for proper loading!", MessageType.Info);
+        EditorGUILayout.HelpBox("Make sure CharacterData assets are in a Resources/CharacterData folder or Assets/Resources/CharacterData for proper loading!", MessageType.Info);
     }
     
     [MenuItem("Tools/Character System/Create Character Selection")]

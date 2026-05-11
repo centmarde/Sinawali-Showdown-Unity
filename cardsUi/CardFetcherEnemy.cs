@@ -296,7 +296,7 @@ public class CardFetcherEnemy : MonoBehaviour
         if (allCards == null)
         {
             #if UNITY_EDITOR
-            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:CardData", new[] { "Assets/CardData" });
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:CardData", new[] { "Assets/Resources/CardData" });
             allCards = new List<CardData>();
             foreach (string guid in guids)
             {

@@ -13,7 +13,7 @@ using UnityEditor;
 public class CardAssetGenerator : MonoBehaviour
 {
     [Header("Card Generation Settings")]
-    [SerializeField] private string cardDataFolderPath = "Assets/CardData/";
+    [SerializeField] private string cardDataFolderPath = "Assets/Resources/CardData/";
     
     [Header("Sample Card Templates")]
     [SerializeField] private bool generateSampleCards = true;
@@ -173,10 +173,11 @@ public class CardAssetGenerator : MonoBehaviour
     {
         CardData newCard = ScriptableObject.CreateInstance<CardData>();
         
-        string path = "Assets/CardData/";
+        string path = "Assets/Resources/CardData/";
         if (!AssetDatabase.IsValidFolder(path))
         {
-            AssetDatabase.CreateFolder("Assets", "CardData");
+            AssetDatabase.CreateFolder("Assets", "Resources");
+            AssetDatabase.CreateFolder("Assets/Resources", "CardData");
         }
         
         string assetPath = AssetDatabase.GenerateUniqueAssetPath(path + "New Card.asset");
@@ -198,7 +199,7 @@ public class CardAssetGenerator : MonoBehaviour
     {
         List<CardData> allCards = new List<CardData>();
         
-        string[] cardGuids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/CardData" });
+        string[] cardGuids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/Resources/CardData" });
         
         foreach (string guid in cardGuids)
         {
@@ -257,7 +258,7 @@ public class CardAssetGenerator : MonoBehaviour
     public static CardData GetCardByName(string cardName)
     {
 #if UNITY_EDITOR
-        string[] cardGuids = AssetDatabase.FindAssets($"{cardName} t:CardData", new[] { "Assets/CardData" });
+        string[] cardGuids = AssetDatabase.FindAssets($"{cardName} t:CardData", new[] { "Assets/Resources/CardData" });
         
         if (cardGuids.Length > 0)
         {

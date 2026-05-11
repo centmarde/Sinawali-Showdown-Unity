@@ -169,7 +169,7 @@ public class CardFetcher : MonoBehaviour
         else
         {
             ClearDisplayedCard();
-            Debug.LogWarning($"CardFetcher: No cards found in Assets/CardData on {gameObject.name}");
+            Debug.LogWarning($"CardFetcher: No cards found in Assets/Resources/CardData on {gameObject.name}");
         }
     }
     
@@ -184,7 +184,7 @@ public class CardFetcher : MonoBehaviour
             
             #if UNITY_EDITOR
             // Editor-time loading
-            string[] guids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/CardData" });
+            string[] guids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/Resources/CardData" });
             
             foreach (string guid in guids)
             {
@@ -203,7 +203,7 @@ public class CardFetcher : MonoBehaviour
             
             if (showDebugInfo)
             {
-                Debug.Log($"CardFetcher: Loaded {allCards.Count} cards from Assets/CardData");
+                Debug.Log($"CardFetcher: Loaded {allCards.Count} cards from Assets/Resources/CardData");
             }
         }
         
@@ -881,7 +881,7 @@ public class CardFetcher : MonoBehaviour
         var obtainedCards = allCards.Where(card => card.IsObtained).ToList();
         var unobtainedCards = allCards.Where(card => !card.IsObtained).ToList();
         
-        Debug.Log($"Total cards in Assets/CardData: {allCards.Count}");
+        Debug.Log($"Total cards in Assets/Resources/CardData: {allCards.Count}");
         Debug.Log($"Obtained cards ({obtainedCards.Count}):");
         foreach (var card in obtainedCards)
         {

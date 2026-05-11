@@ -9,12 +9,13 @@ public class CharacterAssetGenerator
     [MenuItem("Tools/Character System/Create Sample Characters")]
     public static void CreateSampleCharacters()
     {
-        string folderPath = "Assets/CharacterData";
+        string folderPath = "Assets/Resources/CharacterData";
         
         // Create folder if it doesn't exist
         if (!AssetDatabase.IsValidFolder(folderPath))
         {
-            AssetDatabase.CreateFolder("Assets", "CharacterData");
+            AssetDatabase.CreateFolder("Assets", "Resources");
+            AssetDatabase.CreateFolder("Assets/Resources", "CharacterData");
         }
         
         // Sample characters data
@@ -41,12 +42,13 @@ public class CharacterAssetGenerator
     [MenuItem("Tools/Character System/Create Character Asset")]
     public static void CreateNewCharacterAsset()
     {
-        string folderPath = "Assets/CharacterData";
+        string folderPath = "Assets/Resources/CharacterData";
         
         // Create folder if it doesn't exist
         if (!AssetDatabase.IsValidFolder(folderPath))
         {
-            AssetDatabase.CreateFolder("Assets", "CharacterData");
+            AssetDatabase.CreateFolder("Assets", "Resources");
+            AssetDatabase.CreateFolder("Assets/Resources", "CharacterData");
         }
         
         CreateCharacterAsset("New Character", 100, 100, 50, folderPath);
@@ -135,7 +137,7 @@ public class CharacterAssetGenerator
         Character character = characterObj.AddComponent<Character>();
         
         // Try to load a character asset
-        string[] characterPaths = AssetDatabase.FindAssets("t:CharacterData");
+        string[] characterPaths = AssetDatabase.FindAssets("t:CharacterData", new[] { "Assets/Resources/CharacterData" });
         if (characterPaths.Length > 0)
         {
             string path = AssetDatabase.GUIDToAssetPath(characterPaths[0]);
@@ -160,7 +162,7 @@ public class CharacterAssetGenerator
     [MenuItem("Tools/Character System/Validate All Character Assets")]
     public static void ValidateAllCharacterAssets()
     {
-        string[] characterPaths = AssetDatabase.FindAssets("t:CharacterData");
+        string[] characterPaths = AssetDatabase.FindAssets("t:CharacterData", new[] { "Assets/Resources/CharacterData" });
         int validCount = 0;
         int invalidCount = 0;
         

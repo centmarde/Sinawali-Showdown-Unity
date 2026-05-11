@@ -239,7 +239,7 @@ public class DeckManager : MonoBehaviour
         cachedAllCards = new List<CardData>();
 
 #if UNITY_EDITOR
-        string[] guids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/CardData" });
+        string[] guids = AssetDatabase.FindAssets("t:CardData", new[] { "Assets/Resources/CardData" });
         foreach (string guid in guids)
         {
             string assetPath = AssetDatabase.GUIDToAssetPath(guid);
